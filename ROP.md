@@ -2,16 +2,15 @@
 ### in progress
 
 
-```
 ROP
 	what is ROP
 	how to find Gadgets (ropper)
 	how to find Strings in an ELF	
 	how to pivote the Stack
 
-```
-ret2libc (dynamically linked ELF)
 
+# ret2libc (dynamically linked ELF)
+```
 		to use ret2libc we need to know two things
 	
 		1. the exact libc version the ELF uses
@@ -74,9 +73,9 @@ ret2libc (dynamically linked ELF)
 
 
 
+
+# ret2system (statically linked ELF)
 ```
-ret2system (statically linked ELF)
-		
 		`syscall(rax,rdi,rsi,rdx)`	
 		we want to call `execve(pointer_binsh,0,0)` to spawn a shell
 
@@ -128,8 +127,8 @@ ret2system (statically linked ELF)
 
 ```
 
-```
-ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)
+
+# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)
 		
 		the `__libc_csu_init` function is responsible to initialize libc files.
 		in this function there are some interesting gadgets we can use.
@@ -176,7 +175,7 @@ ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)
 
 
 
-```
+
 	ret2dl_resolve
 
 SROP
