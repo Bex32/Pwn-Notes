@@ -337,3 +337,24 @@ n               Nothing printed.
 ```
 
 some examples for interesting specifieres such as `%n %hn %hhn` and `%10000c` will come next
+
+# pwntools Format_string payload generator to overwrite addr with val
+```
+writes = {hex(where): hex(what)}
+payload = pwnlib.fmtstr.fmtstr_payload(6, writes, numbwritten=0, write_size='byte') 
+```
+
+```
+Parameters:    
+
+    offset (int) – the first formatter’s offset you control
+    writes (dict) – dict with addr, value {addr: value, addr2: value2}
+    numbwritten (int) – number of byte already written by the printf function
+    write_size (str) – must be byte, short or int. Tells if you want to write byte by byte, short by short or int by int (hhn, hn or n)
+    overflows (int) – how many extra overflows (at size sz) to tolerate to reduce the length of the format string
+    strategy (str) – either ‘fast’ or ‘small’ (‘small’ is default, ‘fast’ can be used if there are many writes)
+
+Returns:    
+
+The payload in order to do needed writes
+```
