@@ -135,6 +135,7 @@ $rsp+0x10   : 0x00007fffffffded0│+0x0010: "%p %p %p %p %p %p %p %p\n"    ← $
 ```
 notice:
 that `0x7025207025207025 = "%p %p %p"` so our Format_string is stored @ `rsp+0x10`
+and `$r8 : 0x00007fffffffded0` holds a pointer to out Format_string
 
 
 
@@ -264,7 +265,15 @@ that `0x25207025 = "%p %"` so our Format_string is stored @ `esp+0x1c`
 
 `esp` holds the pointer to our Format_string
 `esp+0x1c` is the addr esp points to
-
+```
+$esp+0x04    0xffffd054│+0x0004: 0x00000040 ("@"?)
+$esp+0x08    0xffffd058│+0x0008: 0xf7fac580  →  0xfbad2288
+$esp+0x0c    0xffffd05c│+0x000c: 0x08049292  →  <main+49> sub esp, 0xc
+$esp+0x10    0xffffd060│+0x0010: 0x009c27ab
+$esp+0x14    0xffffd064│+0x0014: 0x00000534
+$esp+0x18    0xffffd068│+0x0018: 0x00000001
+$esp+0x1c    0xffffd06c│+0x001c: "%p %p %p %p %p %p %p\n"
+```
 
 
 
