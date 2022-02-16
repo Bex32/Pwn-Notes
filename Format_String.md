@@ -4,14 +4,12 @@ x32 int printf (esp, esp+4, esp+8, esp+0x0c, esp+0x10, esp+14, esp+18, esp+0x1c 
 ```
 
 <details>
+    <summary> 
+        
+        ### Zusammenfassung
     
-    <summary>
-
-        ### x64
-
     </summary>
-    
-    <div>
+
 
 `int printf ( const char * format, ... );`
 `char *fgets(char *s, int size, FILE *stream);`
