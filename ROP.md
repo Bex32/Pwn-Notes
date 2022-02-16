@@ -129,7 +129,7 @@ ROP
 
 
 # ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)
-		
+```
 		the `__libc_csu_init` function is responsible to initialize libc files.
 		in this function there are some interesting gadgets we can use.
 
@@ -145,8 +145,8 @@ ROP
 		```
 
 		and this will let us controll rdx,rsi and edi but we need to meet some conditions 
-		```
-                            	 
+		
+		```                	 
         	__libc_csu_init+64	MOV        RDX,R14
         	__libc_csu_init+67 	MOV        RSI,R13
         	__libc_csu_init+70 	MOV        EDI,R12D
