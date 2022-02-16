@@ -1,4 +1,5 @@
-
+x64 `int printf (rdi, rsi, rdx, rcx, r8, r9, rsp, rsp+0x8, rsp+0x10, ...);`
+x32 `int printf ( esp, esp+4 ,esp+8 ,esp+0x0c ,esp+0x10 ,esp+14 ,esp+18 ,esp+0x1c , ...);`
 # x64
 `int printf ( const char * format, ... );`
 `char *fgets(char *s, int size, FILE *stream);`
@@ -109,7 +110,7 @@ this is what printf() prints back to us
 0x4052a1 (nil) 0x4052b8 0x7fffffffded0 0x7c 0x400040 0x100f0b5ff 0x7025207025207025
 ```
 `int printf ( const char * format, ... );`
-`int printf (rdi, rsi, rdx, rcx, r8, r9, rsp, rsp+0x8, rsp+0x10);`
+`int printf (rdi, rsi, rdx, rcx, r8, r9, rsp, rsp+0x8, rsp+0x10, ...);`
 
 rdi = holds the pointer to the Format_string
 
