@@ -1,6 +1,6 @@
 ```
 x64 int printf (rdi, rsi, rdx, rcx, r8, r9, rsp, rsp+0x8, rsp+0x10, ...);
-x32 int printf ( esp, esp+4 ,esp+8 ,esp+0x0c ,esp+0x10 ,esp+14 ,esp+18 ,esp+0x1c , ...);
+x32 int printf (esp, esp+4, esp+8, esp+0x0c, esp+0x10, esp+14, esp+18, esp+0x1c , ...);
 ```
 
 # x64
@@ -260,7 +260,7 @@ this is what printf() prints back to us
 notice:
 that `0x25207025 = "%p %"` so our Format_string is stored @ `esp+0x1c`
 
-`int printf ( esp, esp+4 ,esp+8 ,esp+0x0c ,esp+0x10 ,esp+14 ,esp+18 ,esp+0x1c , ...);`
+`int printf (esp, esp+4, esp+8, esp+0x0c, esp+0x10, esp+14, esp+18, esp+0x1c , ...);`
 
 `esp` holds the pointer to our Format_string
 `esp+0x1c` is the addr esp points to
