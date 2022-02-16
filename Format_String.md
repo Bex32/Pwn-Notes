@@ -152,6 +152,7 @@ that `0x7025207025207025 = "%p %p %p"` so our Format_string is stored @ `rsp+0x1
 
 # x32
 `int printf ( const char * format, ... );`
+`char *fgets(char *s, int size, FILE *stream);`
 
 first we need to find find the `call printf()`
 
