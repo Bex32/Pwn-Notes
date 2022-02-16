@@ -128,7 +128,7 @@ ROP
 ```
 
 
-# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)
+# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)   not finished/ in progress
 ```
 		the `__libc_csu_init` function is responsible to initialize libc files.
 		in this function there are some interesting gadgets we can use.
