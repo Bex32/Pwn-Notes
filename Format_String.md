@@ -11,7 +11,7 @@ x32 int printf (esp, esp+4, esp+8, esp+0x0c, esp+0x10, esp+14, esp+18, esp+0x1c 
 
     </summary>
     
-        <div>
+    <div>
 
 `int printf ( const char * format, ... );`
 `char *fgets(char *s, int size, FILE *stream);`
@@ -147,7 +147,7 @@ that `0x7025207025207025 = "%p %p %p"` so our Format_string is stored @ `rsp+0x1
 and `$r8 : 0x00007fffffffded0` holds a pointer to out Format_string
 
 
-        </div>
+    </div>
 </details>
 
 
