@@ -338,7 +338,7 @@ n               Nothing printed.
 
 some examples for interesting specifieres such as `%n %hn %hhn` and `%10000c` will come next
 
-# pwntools Format_string payload generator to overwrite addr with val
+# pwntools Format string payload generator 
 ```
 writes = {hex(where): hex(what)}
 payload = pwnlib.fmtstr.fmtstr_payload(6, writes, numbwritten=0, write_size='byte') 
