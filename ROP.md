@@ -170,7 +170,7 @@ ROP
 		rsi = r13
 		edi = r12D
 		rip = [r15 + rbx*8] #we use this to syscall
-
+```
 		<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2csu_gadgets.png">
 
 
@@ -181,9 +181,6 @@ ROP
 SROP
 
 BROP
-
-
-```
 
 # BROP 
 
