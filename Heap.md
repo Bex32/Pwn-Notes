@@ -25,4 +25,4 @@ addr of pr2
 &pr2 == pr1 (Bearbeitet)
 
 ```
-<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/pointer-2-pointer.png">
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/pointer-to-pointer.png">
