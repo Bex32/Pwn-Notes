@@ -4,7 +4,7 @@ x32 int printf (esp, esp+4, esp+8, esp+0x0c, esp+0x10, esp+14, esp+18, esp+0x1c 
 ```
 
 <details>
-    <summary>x64</summary>
+    <summary>printf() in x64 explained</summary>
         <div>
 
 `int printf ( const char * format, ... );`
@@ -155,7 +155,7 @@ and `$r8 : 0x00007fffffffded0` holds a pointer to out Format_string
 
 
 <details>
-    <summary>x32</summary>
+    <summary>printf() in x32 explained</summary>
         <div>
 
 
