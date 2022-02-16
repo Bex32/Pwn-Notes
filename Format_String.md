@@ -1,12 +1,11 @@
-<details>
-    <summary>Zusammenfassung</summary>
-    Hier kommt der Inhalt.
-
-
 ```
 x64 int printf (rdi, rsi, rdx, rcx, r8, r9, rsp, rsp+0x8, rsp+0x10, ...);
 x32 int printf (esp, esp+4, esp+8, esp+0x0c, esp+0x10, esp+14, esp+18, esp+0x1c , ...);
 ```
+
+<details>
+    <summary>#x64</summary>
+
 
 # x64
 `int printf ( const char * format, ... );`
