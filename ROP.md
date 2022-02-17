@@ -27,7 +27,7 @@ string = next(libc.search(b'string you searching'))
 ```
 
 # how to pivote the Stack
-
+in progress
 # ret2techniques
 	
 <details>
@@ -297,12 +297,14 @@ For de-randomizing libc, we can use &GOT_TABLE, coupled with some read(), write(
 </div>
 </details>
 
-
+# ret2dl_resolve
+in progress
 
 
 
 
 # BROP 
-
+in progress
 # SROP
+in progress
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/sigret_frame.png">
