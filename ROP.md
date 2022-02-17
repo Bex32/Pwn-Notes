@@ -28,6 +28,8 @@ string = next(libc.search(b'string you searching'))
 ```
 
 # how to pivote the Stack
+
+# ret2techniques
 	
 <details>
     <summary>ret2libc (dynamically linked ELF)</summary>
