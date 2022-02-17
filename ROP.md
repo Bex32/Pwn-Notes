@@ -3,7 +3,6 @@
 
 
 # ROP
-# what is ROP
 # how to find Gadgets (Ropper)
 read the docs!
 https://github.com/sashs/Ropper
