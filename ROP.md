@@ -2,11 +2,32 @@
 ### in progress
 
 
-ROP
-	what is ROP
-	how to find Gadgets (ropper)
-	how to find Strings in an ELF	
-	how to pivote the Stack
+# ROP
+# what is ROP
+# how to find Gadgets (Ropper)
+read the docs!
+https://github.com/sashs/Ropper
+
+Ropper is a tool that can display information about binary files in different file formats and can search for gadgets to build rop chains for different architectures (x86/X86_64, ARM/ARM64, MIPS/MIPS64, PowerPC/PowerPC64, SPARC64).
+
+most usefull commands imo.
+
+`(ropper) file vuln_binary` loads the specified binary into cache and analyze it than cleans up double gadgets. \
+`(ropper) search /1/ pop r??` /1/ = search for gadgets with max 1 instruction + ret  \
+? means non specific char so this will search for `pop rax`&`pop rdi`&`pop rsi` and so on \
+`(ropper) semantic eax==1 !ebx` searches for a gadget that set eax to 1 and does not clobber ebx
+
+# how to find Strings in an ELF	
+searching manually
+`strings -t x -a /path/to/binary | grep "string you searching"`
+
+in a pwntools script
+```
+binary = ELF('/path/to/binary')
+string = next(libc.search(b'string you searching'))
+```
+
+# how to pivote the Stack
 	
 <details>
     <summary>ret2libc (dynamically linked ELF)</summary>
