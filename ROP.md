@@ -7,9 +7,12 @@ ROP
 	how to find Gadgets (ropper)
 	how to find Strings in an ELF	
 	how to pivote the Stack
+	
+<details>
+    <summary>ret2libc (dynamically linked ELF)</summary>
+        <div>
 
 
-# ret2libc (dynamically linked ELF)
 ```
 		to use ret2libc we need to know two things
 	
@@ -70,8 +73,12 @@ ROP
 		payload += p64(system)			#call the libc system function
 
 ```
+</div>
+</details>
 
-
+<details>
+    <summary>ret2libc (dynamically linked ELF)</summary>
+        <div>
 
 
 # ret2system (statically linked ELF)
@@ -135,7 +142,13 @@ ROP
 
 
 ```
+</div>
+</details>
 
+<details>
+    <summary>ret2libc (dynamically linked ELF)</summary>
+        <div>
+		
 # ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found   not finished/ in progress
 ```
 		the `__libc_csu_init` function is responsible to initialize libc files.
@@ -260,7 +273,9 @@ For de-randomizing libc, we can use &GOT_TABLE, coupled with some read(), write(
 
 ```
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2csu_gadgets.png">
-
+		
+</div>
+</details>
 
 
 
