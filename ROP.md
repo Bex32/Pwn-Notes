@@ -77,7 +77,7 @@ ROP
 </details>
 
 <details>
-    <summary>ret2libc (dynamically linked ELF)</summary>
+    <summary>ret2system (statically linked ELF)</summary>
         <div>
 
 
@@ -146,10 +146,10 @@ ROP
 </details>
 
 <details>
-    <summary>ret2libc (dynamically linked ELF)</summary>
+    <summary>ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)</summary>
         <div>
 		
-# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found   not finished/ in progress
+# ret2csu(no sufficient gadgets to set rdi,rsi,rdx can be found)
 ```
 		the `__libc_csu_init` function is responsible to initialize libc files.
 		in this function there are some interesting gadgets we can use.
