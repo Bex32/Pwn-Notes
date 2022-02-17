@@ -300,13 +300,11 @@ For de-randomizing libc, we can use &GOT_TABLE, coupled with some read(), write(
 # ret2dl_resolve
 in progress
 
-
+# Blind Return Oriented Programming
 <details>
     <summary>BROP (dont have the binary // PIE off)</summary>
         <div>
 
-
-# Blind Return Oriented Programming
 
 Steps of Exploitation:
 
