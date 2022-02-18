@@ -937,6 +937,7 @@ for i in range(0x50):                           # loop 0x400200 -> 0x400700  ## 
 
  
 ### leak the process with write()
+		
 ```
 def leak_binary_write(i,j):
 
@@ -996,6 +997,8 @@ with open('binary_dump', 'wb') as out:
 
 ```
 
+</div>
+</details>
 
 
 # ret2dl_resolve
