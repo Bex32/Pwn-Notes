@@ -4,6 +4,12 @@
 
 # ROP
 # how to find Gadgets (Ropper)
+
+<details>
+    <summary>Ropper</summary>
+        <div>
+
+
 read the docs!
 https://github.com/sashs/Ropper
 
@@ -16,15 +22,32 @@ most usefull commands imo.
 ? means non specific char so this will search for `pop rax`&`pop rdi`&`pop rsi` and so on \
 `(ropper) semantic eax==1 !ebx` searches for a gadget that set eax to 1 and does not clobber ebx
 
-# how to find Strings in an ELF	
-searching manually
+</div>
+</details>
+
+		
+# find Strings in an ELF	
+<details>
+    <summary>strings</summary>
+        <div>
+		
+searching manually   \
 `strings -t x -a /path/to/binary | grep "string you searching"`
 
-in a pwntools script
+</div>
+</details>
+		
+<details>
+    <summary>pwntools</summary>
+        <div>
+
+in python script
 ```
 binary = ELF('/path/to/binary')
-string = next(libc.search(b'string you searching'))
+stringaddr = next(binary.search(b'string you searching'))
 ```
+</div>
+</details>
 
 # how to pivote the Stack
 in progress
