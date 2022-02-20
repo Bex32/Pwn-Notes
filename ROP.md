@@ -1136,7 +1136,7 @@ we can create a fake .rel.plt entry in the .bss and pass a huge index to _dl_run
 we set 0x1A6 as index.   \
 runtime_resolve would than look for the .rel.plt entry @ 0x404038 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info.   
 		
-each .rel.plt entry is 24 bytes in size.    \	
+each .rel.plt entry is 24 bytes in size.    	
 		
 ```
 addr_fake_struct - addr_of_.rel.plt = byte_offset / 24 = index_offset 
