@@ -1101,8 +1101,8 @@ if we cange d_val to a section in the .bss we can basically write our own String
 		|___________________|    |___________________|
 
 ```
-<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/noRELROdynamicSection.png">		
-
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/nRELROdynamicSection.png">		
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynstr.png">
 
 </div>
 </details>
@@ -1131,38 +1131,43 @@ Prerequisites
 
 we can create a fake .rel.plt entry in the .bss and pass a huge index to _dl_runtime_resolve(elf_info,index)
 
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/relplt.png">
 
-### relplt bild hier ###
+we set 0x1A6 as index.   \
+runtime_resolve would than look for the .rel.plt entry @ 0x404038 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info.   
+		
+each .rel.plt entry is 24 bytes in size.    \	
+		
+```
+addr_fake_struct - addr_of_.rel.plt = byte_offset / 24 = index_offset 
+0x404038 - 0x4004d8 = 0x3B60/24 = 0x1A6   
+```
 
-we set 0x1A6 as index.
-runtime_resolve would than look for the .rel.plt entry @ 0x404038 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info .
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynsym.png">
+we set our fake r_info to 0x286 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
 
-0x404038 - 0x4004d8 = 0x3B60/24 = 0x1A6
-each .rel.plt entry is 24 bytes in size.
+each .dynsym entry is 18 bytes in size 
+		
+```
+(addr_fake_struct + offset_fake_dynsym) - addr_of_.dynsym = byte_offset / 18 = r_info_offset 
+(0x404038+24) - 0x04003c0     				#+24 cause our fake_.rel.plt is 24 bytes
+0x404050 - 0x04003c0 = 0x3c90/18 = 0x286    
+```	
 
-
-
-### dynsym bild hier ###
-
-we set our fake r_info to 0x286 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct 
-
-(0x404038+24) - 0x04003c0
-0x404050 - 0x04003c0 = 0x3c90/18 = 0x286
-each .dynsym entry is 18 bytes in size
-
-here we set the st_name offset to 0x3c2a.
-starting @ 0x400438 to our fake string @ 0x404062
-
-(0x404038+24+18) - 0x400438
-0x404062 - 0x400438 = 0x3c2a
-
+here we set the st_name offset to 0x3c2a.    \
+starting @ 0x400438 to our fake string @ 0x404062    
+```
+(addr_fake_struct + offset_fake_dynsym + offset_fake_dynstr) - addr_of_.dynstr = st_name 
+(0x404038+24+18) - 0x400438    
+0x404062 - 0x400438 = 0x3c2a    
+```
 and as last step we set what libc function we want to resolve into our fake .dynstr entry @ 0x404062
 
 
 
 ```
 _dl_runtime_resolve(elf_info , index)
-								|  
+				|  
                        _________|                   
  ___________________  |           
 | Relocation table  | |        
@@ -1174,19 +1179,19 @@ _dl_runtime_resolve(elf_info , index)
 |       r_info      |<|               
 |___________________| .     
                       .
-                      .....
-	 ___________________  .
-	|    Writable area  | .
-	|________.bss_______| .
-	|      r_offset     | .
-	|___________________| .
- ...|      r_info       |<.
+                      ..........
+	 ___________________   .
+	|    Writable area  |  .
+	|________.bss_______|  .
+	|      r_offset     |  .
+	|___________________|  .
+ .......|      r_info       |<..
  .	|___________________|
- .  |        ...        |
- .  |___________________|
+ .      |        ...        |
+ .      |___________________|
  .	|      st_name      |
  .	|___________________|
- .>>|      st_info      |...   
+ .....>>|      st_info      |...   
 	|___________________|  . 
 	|        ...        |  . 
 	|___________________|  . 
@@ -1195,7 +1200,7 @@ _dl_runtime_resolve(elf_info , index)
 
 
 ```
-This aproch will not work allways:
+This aproach will not work allways:
 If the Dynamic loader checks the boundaries.
 If symbol versioning and huge pages are enabled. 
 
@@ -1204,7 +1209,7 @@ If symbol versioning and huge pages are enabled.
 </details>
 
 
-# in Progress
+
 
 
 
