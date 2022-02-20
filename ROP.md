@@ -1209,9 +1209,126 @@ If symbol versioning and huge pages are enabled.
 </details>
 
 
+	
+	
+<details>
+    <summary>ret2dl_resolve method 3. (PIE is off//partial RELRO)</summary>
+        <div>
+
+
+Prerequisites
+1. IP controll
+2. ability to write to an addr `*(destination) = value` 
+
+`mov [rax],rdi`
+
+
+3. ability to write to a pointer with an offset  `*(*(reg) + offset) = value`
+
+```
+mov rax, [rax]				#get the pointed addr into rax
+mov [rax + rdx], rdi		#add rdx to pointed addr and mov rdi into it
+```
+
+elf_info points to a link_map struct    \
+the link_map holds a pointer to the .dynstr table    \
+the elf_info is allways available at a reserved GOT entry GOT[1]
+
+this is like the first attack but we need a specific gadget to exploit this sucesfully.
+
+we know the pointer to the link_map but we actually have to rewrite an entry in the link map.    \
+
+
+```
+gef➤  got
+
+GOT protection: No RelRO | GOT functions: 3
+ 
+[0x403368] puts@GLIBC_2.2.5  →  0x7ffff7e435a0
+[0x403370] __stack_chk_fail@GLIBC_2.4  →  0x7ffff7eeeb00
+[0x403378] gets@GLIBC_2.2.5  →  0x7ffff7e42af0
+
+```
+
+```
+gef➤  tel 0x403368-32
+0x0000000000403348│+0x0000: 0x0000000000000000
+0x0000000000403350│+0x0008: 0x0000000000403160  →  0x0000000000000001            #pointer to link_map struct
+0x0000000000403358│+0x0010: 0x0000000000000000
+0x0000000000403360│+0x0018: 0x0000000000000000
+0x0000000000403368│+0x0020: 0x00007ffff7e435a0  →  <puts+0> endbr64 
+0x0000000000403370│+0x0028: 0x00007ffff7eeeb00  →  <__stack_chk_fail+0> endbr64 
+0x0000000000403378│+0x0030: 0x00007ffff7e42af0  →  <gets+0> endbr64 
+0x0000000000403380│+0x0038: 0x00007ffff7de2fc0  →  <__libc_start_main+0> endbr64 
+0x0000000000403388│+0x0040: 0x0000000000000000
+0x0000000000403390│+0x0048: 0x0000000000000000
+```
+
+```
+gef➤  tel 20 0x0000000000403160
+0x0000000000403160│+0x0000: 0x0000000000000001
+0x0000000000403168│+0x0008: 0x0000000000000001
+0x0000000000403170│+0x0010: 0x000000000000000c
+0x0000000000403178│+0x0018: 0x0000000000401000  →  <_init+0> endbr64 
+0x0000000000403180│+0x0020: 0x000000000000000d
+0x0000000000403188│+0x0028: 0x0000000000401248  →  <_fini+0> endbr64 
+0x0000000000403190│+0x0030: 0x0000000000000019
+0x0000000000403198│+0x0038: 0x0000000000403150  →  0x0000000000401170  →  <frame_dummy+0> endbr64 
+0x00000000004031a0│+0x0040: 0x000000000000001b
+0x00000000004031a8│+0x0048: 0x0000000000000008
+0x00000000004031b0│+0x0050: 0x000000000000001a
+0x00000000004031b8│+0x0058: 0x0000000000403158  →  0x0000000000401140  →  <_do_global_dtors_aux+0> endbr64 
+0x00000000004031c0│+0x0060: 0x000000000000001c
+0x00000000004031c8│+0x0068: 0x0000000000000008
+0x00000000004031d0│+0x0070: 0x000000006ffffef5
+0x00000000004031d8│+0x0078: 0x0000000000400368  →  0x0000000100000001
+0x00000000004031e0│+0x0080: 0x0000000000000005
+0x00000000004031e8│+0x0088: 0x0000000000400418  →  0x6f732e6362696c00		#this it the pointer to .dynstr
+0x00000000004031f0│+0x0090: 0x0000000000000006
+0x00000000004031f8│+0x0098: 0x0000000000400388  →  0x0000000000000000
+```
+
+it is writable
+```
+gef➤  vmmap 0x00000000004031e8
+[ Legend:  Code | Heap | Stack ]
+Start              End                Offset             Perm Path
+0x0000000000403000 0x0000000000404000 0x0000000000002000 rw- /home/bex/Desktop/PWN Guide/ret2dlsrc/a.out
+
+```
 
 
 
+
+``` 
+           _________________       ___________________
+	|        GOT        |  |>>|    String table   |
+	|______.plt.got_____|  |>>|______.dynstr______| 
+	|        got[0]     |  |  |        ...        |  
+	|___________________|  |  |___________________|  
+	|        got[1]     |  |  |       read\0      | 
+ |------|___________________|  |  |___________________| 
+ |	|        got[2]     |  |  |       puts\0      | 
+ |	|___________________|  |  |___________________|
+ |                             |
+ |	 ___________________   |   ___________________  
+ |	|                   |  |.>|  Writable area    |  
+ |	|___________________|  |.>|___________________|  
+ |	|        ...        |  |. |        ...        |  
+ |	|___________________|  |. |___________________|  
+ |	|  l_info[DT_HASH]  |  |. |       read\0      |  
+ |	|___________________|  |. |___________________|  
+ |---->>| l_info[DT_STRTAB] |--|. |       execve\0    |
+	|___________________|     |___________________|
+	| l_info[DT_SYMTAB] |
+	|___________________|
+
+```
+
+
+
+</div>
+</details>
 
 
 # SROP
