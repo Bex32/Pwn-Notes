@@ -1002,7 +1002,215 @@ with open('binary_dump', 'wb') as out:
 
 
 # ret2dl_resolve
-in progress
+
+<details>
+    <summary>how _dl_runtime_resolve works </summary>
+        <div>
+		
+```
+_dl_runtime_resolve(elf_info , index )
+				|
+				|
+  ------------------------------
+  |
+  |	 ___________________          ___________________          ___________________
+  |	| Relocation table  |        |   Symbol table    |        |   String table    |
+  |	|_____rel.plt_______|        |_____.dynsym_______|        |______.dynstr______|
+  |	|       ...         |        |       ...         |        |       ...         |
+  |	|___________________|        |___________________|        |___________________|
+  >>>>>>|      r_offset     |        |      st_name      |        |      read\0       |
+	|___________________|        |___________________|        |___________________|
+	|      r_info       | ____   |      st_info      |        |       ...         |
+	|___________________|     |  |___________________|        |___________________|
+	|       ...         |     |  |        ...        |    |>>>|      puts\0       |
+	|___________________|     |  |___________________|    |   |___________________|
+	|      r_offset     |     |  |      st_name      | ___|   |       ...         |
+	|___________________|     |  |___________________|        |___________________|
+	|      r_info       |     >>>|      st_info      |        |                   |
+	|___________________|        |___________________|        |___________________|
+
+```
+		
+so first we enter the call to puts.
+
+since this is the first call to puts it is not binded we need to setup the arguments for _dl_runtime_resolve(elf_info , index )
+
+##pushes the index in this case 0x0 
+	0x401030                  endbr64 
+ →   0x401034                  push   0x0
+     0x401039                  bnd    jmp 0x401020
+
+##pushes the elf_info 0x404008:	0x00007ffff7ffe190
+→   0x401020                  push   QWORD PTR [rip+0x2fe2]        # 0x404008
+     0x401026                  bnd    jmp QWORD PTR [rip+0x2fe3]        # 0x404010
+     0x40102d                  nop    DWORD PTR [rax]
+
+than we look into the rel.plt 
+
+
+we pushed 0 so we look at the first entry of the Relocation table and find the r_info holding 100000007h for now we only care about the 1 which is the offset for the Symbol table
+
+###Relocation_table bild hier ###
+
+
+in the Symbole table we look at offset 1 and find the st_name which holds the offset 10h
+
+###Symbol_table bild hier ###
+
+in the String table we look at ofset 10h and find the string puts
+
+###String_table bild hier ###
+
+
+
+</div>
+</details>
+
+
+
+
+<details>
+    <summary>ret2dl_resolve method 1. (PIE is off // RELRO off)</summary>
+        <div>
+		
+
+
+Prerequisites
+1. IP controll
+2. ability to write to memory
+
+in the .dynamic section there is a pointer to the String table .dynstr if RELRO is off this section is actually writeable we can change the pointer to.
+if we cange d_val to a section in the .bss we can basically write our own String table there and simply could replace puts with execve.
+
+
+```
+ ___________________      ___________________ 
+|   Symbole table   |    |    String table   | <<<______
+|______.dynsym______|    |______.dynstr______|          |
+|        ...        |    |        ...        |          |
+|___________________|    |___________________|          |
+|       st_name     |_   |       read\0      |          |
+|___________________| |  |___________________|          |
+|       st_info     | |>>|       puts\0      |          |
+|___________________| .  |___________________|          |
+    ...................        .........................|
+	.	 ___________________   .  ___________________   |
+	.	|   Writeable area  |<<. |      .dynamic     |  |
+	.	|________.bss_______|    |___________________|  |
+	.	|        ...        |    |        ...        |  |
+	.	|___________________|    |___________________|  |
+	.	|       read\0      |    |  d_tag: DT_STRTAB |  |
+	.	|___________________|    |___________________|  |
+	.>>>|       execve\0    |    |       d_val       |__|
+		|___________________|    |___________________|
+
+```
+		
+### noRELROdynamicSection bild hier ###
+
+</div>
+</details>
+
+
+<details>
+    <summary>ret2dl_resolve method 2. (PIE is off// partial RELRO)</summary>
+        <div>
+
+
+
+
+Prerequisites
+1. IP controll
+2. ability to write to memory
+
+```
+  [ 6] .dynsym     00000000004003c0  symbole table
+  [ 7] .dynstr     0000000000400438  string table
+  [11] .rela.plt   00000000004004d8  relocation table
+  [22] .dynamic    0000000000403e20  dynamic section
+  [24] .got.plt    0000000000404000  GOT
+  [26] .bss        0000000000404038  .bss we can write here
+
+```
+
+we can create a fake .rel.plt entry in the .bss and pass a huge index to _dl_runtime_resolve(elf_info,index)
+
+
+### relplt bild hier ###
+
+we set 0x1A6 as index.
+runtime_resolve would than look for the .rel.plt entry @ 0x404038 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info .
+
+0x404038 - 0x4004d8 = 0x3B60/24 = 0x1A6
+each .rel.plt entry is 24 bytes in size.
+
+
+
+### dynsym bild hier ###
+
+we set our fake r_info to 0x286 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct 
+
+(0x404038+24) - 0x04003c0
+0x404050 - 0x04003c0 = 0x3c90/18 = 0x286
+each .dynsym entry is 18 bytes in size
+
+here we set the st_name offset to 0x3c2a.
+starting @ 0x400438 to our fake string @ 0x404062
+
+(0x404038+24+18) - 0x400438
+0x404062 - 0x400438 = 0x3c2a
+
+and as last step we set what libc function we want to resolve into our fake .dynstr entry @ 0x404062
+
+
+
+```
+_dl_runtime_resolve(elf_info , index)
+								|  
+                       _________|                   
+ ___________________  |           
+| Relocation table  | |        
+|______.rel.plt_____| |               
+|        ...        | |               
+|___________________| |               
+|       r_offset    | |               
+|___________________| |               
+|       r_info      |<|               
+|___________________| .     
+                      .
+                      .....
+	 ___________________  .
+	|    Writable area  | .
+	|________.bss_______| .
+	|      r_offset     | .
+	|___________________| .
+ ...|      r_info       |<.
+ .	|___________________|
+ .  |        ...        |
+ .  |___________________|
+ .	|      st_name      |
+ .	|___________________|
+ .>>|      st_info      |...   
+	|___________________|  . 
+	|        ...        |  . 
+	|___________________|  . 
+	|      execve\0     |<<. 
+	|___________________|
+
+
+```
+This aproch will not work allways:
+If the Dynamic loader checks the boundaries.
+If symbol versioning and huge pages are enabled. 
+
+
+</div>
+</details>
+
+
+# in Progress
+
+
 
 
 # SROP
