@@ -1035,33 +1035,28 @@ so first we enter the call to puts.
 
 since this is the first call to puts it is not binded we need to setup the arguments for _dl_runtime_resolve(elf_info , index )
 
-##pushes the index in this case 0x0       \
+pushes the index in this case 0x0       \
 ```
-	0x401030                  endbr64        \
- →   0x401034                  push   0x0       \
+	0x401030                  endbr64        
+ →   0x401034                  push   0x0       
      0x401039                  bnd    jmp 0x401020      
 ```
-##pushes the elf_info 0x404008:	0x00007ffff7ffe190       \
+pushes the elf_info 0x404008:	0x00007ffff7ffe190       \
 ```
-→   0x401020                  push   QWORD PTR [rip+0x2fe2]        # 0x404008       \
-     0x401026                  bnd    jmp QWORD PTR [rip+0x2fe3]        # 0x404010       \
+→   0x401020                  push   QWORD PTR [rip+0x2fe2]        # 0x404008       
+     0x401026                  bnd    jmp QWORD PTR [rip+0x2fe3]        # 0x404010       
      0x40102d                  nop    DWORD PTR [rax]       
 ```
-than we look into the rel.plt        \
+than we look into the rel.plt        
 
 we pushed 0 so we look at the first entry of the Relocation table and find the r_info holding 100000007h for now we only care about the 1 which is the offset for the Symbol table       
-
-###Relocation_table bild hier ###
-
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/Relocation_table.png">
 
 in the Symbole table we look at offset 1 and find the st_name which holds the offset 10h
-
-###Symbol_table bild hier ###
-
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/Symbole_table.png">
+		
 in the String table we look at ofset 10h and find the string puts
-
-###String_table bild hier ###
-
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/String_Table.png">
 
 
 </div>
@@ -1094,7 +1089,7 @@ if we cange d_val to a section in the .bss we can basically write our own String
 |___________________| |  |___________________|          |
 |       st_info     | |>>|       puts\0      |          |
 |___________________| .  |___________________|          |
-    ...................        .........................|
+        ...............                .................|_______
 	.	 ___________________   .  ___________________   |
 	.	|   Writeable area  |<<. |      .dynamic     |  |
 	.	|________.bss_______|    |___________________|  |
@@ -1102,12 +1097,12 @@ if we cange d_val to a section in the .bss we can basically write our own String
 	.	|___________________|    |___________________|  |
 	.	|       read\0      |    |  d_tag: DT_STRTAB |  |
 	.	|___________________|    |___________________|  |
-	.>>>|       execve\0    |    |       d_val       |__|
+	.....>>>|       execve\0    |    |       d_val       |__|
 		|___________________|    |___________________|
 
 ```
-		
-### noRELROdynamicSection bild hier ###
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/noRELROdynamicSection.png">		
+
 
 </div>
 </details>
