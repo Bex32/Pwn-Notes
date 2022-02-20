@@ -308,6 +308,8 @@ For de-randomizing libc, we can use &GOT_TABLE, coupled with some read(), write(
     <summary>BROP (dont have the binary // PIE off // puts() in binary)</summary>
         <div>
 
+# BROP (dont have the binary // PIE off // puts() in binary)
+		
 Steps of Exploitation:
 
 Puts/Printf() when fd is 0,1,2 stdin,stdout,stderror
@@ -635,6 +637,8 @@ def pwn():
     <summary>BROP (dont have the binary // PIE off // puts() not in binary)</summary>
         <div>
 
+# BROP (dont have the binary // PIE off // puts() not in binary)		
+		
 1. find a loop-gadget
 2. find brop-gadget (the ret2csu popper-gadget // rdi & rsi controll)
 3. find strcmp@PLT (strcmp sets rdx)
@@ -1007,6 +1011,8 @@ with open('binary_dump', 'wb') as out:
     <summary>how _dl_runtime_resolve works </summary>
         <div>
 		
+# how _dl_runtime_resolve works
+
 ```
 _dl_runtime_resolve(elf_info , index )
 				|
@@ -1069,7 +1075,7 @@ in the String table we look at ofset 10h and find the string puts
     <summary>ret2dl_resolve method 1. (PIE is off // RELRO off)</summary>
         <div>
 		
-
+# ret2dl_resolve method 1. (PIE is off // RELRO off)
 
 Prerequisites
 1. IP controll
@@ -1112,7 +1118,7 @@ if we cange d_val to a section in the .bss we can basically write our own String
     <summary>ret2dl_resolve method 2. (PIE is off// partial RELRO)</summary>
         <div>
 
-
+# ret2dl_resolve method 2. (PIE is off// partial RELRO)
 
 
 Prerequisites
@@ -1214,7 +1220,8 @@ If symbol versioning and huge pages are enabled.
 <details>
     <summary>ret2dl_resolve method 3. (PIE is off//partial RELRO)</summary>
         <div>
-
+		
+# ret2dl_resolve method 3. (PIE is off//partial RELRO)
 
 Prerequisites
 1. IP controll
@@ -1333,7 +1340,9 @@ Start              End                Offset             Perm Path
 <details>
     <summary>ret2dl_resolve method 4. (PIE is off//full RELRO)</summary>
         <div>
-
+		
+# ret2dl_resolve method 4. (PIE is off//full RELRO)
+		
 in this methode we use a debugging feature DT_DEBUG in the .dynamic section that points to a debugger data struct. (it is used by e.g. gdb to track loading of new librarys)
 
 this DT_DEBUG data struct also holds a pointer to the link_map
