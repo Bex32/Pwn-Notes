@@ -1301,7 +1301,7 @@ Start              End                Offset             Perm Path
 
 
 ``` 
-           _________________       ___________________
+         ___________________       ___________________
 	|        GOT        |  |>>|    String table   |
 	|______.plt.got_____|  |>>|______.dynstr______| 
 	|        got[0]     |  |  |        ...        |  
@@ -1324,12 +1324,106 @@ Start              End                Offset             Perm Path
 	|___________________|
 
 ```
-
-
-
 </div>
 </details>
 
+
+		
+	
+<details>
+    <summary>ret2dl_resolve method 4. (PIE is off//full RELRO)</summary>
+        <div>
+
+in this methode we use a debugging feature DT_DEBUG in the .dynamic section that points to a debugger data struct. (it is used by e.g. gdb to track loading of new librarys)
+
+this DT_DEBUG data struct also holds a pointer to the link_map
+
+but we still have to find the dl_runtime_resolve() cause the reserved GOT entry for it is gone as well as the elf_info link_map reserver GOT
+
+the link_map is part of a linked list.
+If we go to the next entry in the liniked list 
+
+
+Prerequisites
+1. IP controll
+2. ability to write to an addr `*(destination) = value` 
+
+`mov [rax],rdi`
+
+
+3. ability to write to a pointer with an offset  `*(*(rax) + offset) = value`
+
+
+```
+mov rax, [rax]
+mov [rax + offset],value
+```
+
+4. 
+
+```
+mov pointer, [pointer]
+mov reg, [pointer + offset]
+mov [destination], reg
+```
+5.
+```
+mov reg, [source]
+mov [esp + offset], reg
+```
+
+```
+     ___________________                     ___________________         ___________________ 
+    |   Dynamic section |                   |       [HEAP]      |       |        GOT        |  
+    |______.dynamic_____|                   |___________________|     |>|______.plt.got_____|    
+    |        ...        |                   |         ...       |     | |       GOT[0]      |   
+    |___________________|                   |___________________|     | |___________________|   
+    |  d_tag: DT_DEBUG  |                   |      r_version    |     | |       GOT[1]      |      
+    |___________________|                   |___________________|     | |___________________|      
+    |       d_val       | ---------------->>|        r_map      |     | |       GOT[2]      |---_dl_runtime_resolve
+    |___________________|                   |___________________|--|  | |___________________|    
+    |        ...        |                   |         ...       |  |  | |       GOT[3]      | 
+    |___________________|                   |___________________|  |  | |___________________|   
+    |  d_tag: DT_STRTAB |           |-------|l_info [DT_STRTAB] |  |  | |        ...        |  
+    |___________________|           | ......|___________________|  |  | |___________________|  
+ ---|       d_val       |           | .     |         ...       |  |  |    
+ |  |___________________|           | .     |___________________|  |  |   
+ |                                  | .   --|       l_next      |<-|  |
+ |                                  | .   | |___________________|     |
+ |                                  | .   | |         ...       |     |
+ |                                  | .   | |___________________|     |
+ |                                  | .   |>| l_info[DT_PLTGOT] |-----|
+ |                                  | .     |___________________|
+ |                                  | .
+ ->>|    String table   |<<---------- .
+    |______.dynstr______|              .
+    |        ...        |               ................
+    |___________________|        ___________________   .
+    |       read\0      |       |    Writable area  |  .
+    |___________________|       |________.bss_______|<<.
+    |       puts\0      |<--    |        ...        |
+    |___________________|  |    |___________________|
+    |        ...        |  |    |       read\0      |
+    |___________________|  |    |___________________|
+                           |..>>|       execve\0    |
+     ___________________   |.   |___________________| 
+    |   Dymbol table    |  |.  
+    |______.dynsym______|  |.    
+    |        ...        |  |.   
+    |___________________|  |.   
+    |      st_name      |--|.    
+    |___________________| 
+    |      st_info      |    
+    |___________________|   
+    |        ...        |    
+    |___________________| 
+```
+IN PROGESS
+		
+		
+		
+</div>
+</details>
 
 # SROP
 in progress
