@@ -1196,7 +1196,7 @@ we set our fake r_info to 0x288 and place our fake .dynsym struct that contains 
 here we set the st_name offset to 0x3c30.    \
 starting @ 0x400470 to our fake string @ 0x4040a0    
 ```
-(addr_fake_struct + len(fake_dynsym) + len(fake_dynstr)) - addr_of_.dynstr = st_name 
+(addr_fake_struct + len(fake_.rel.plt) + len(fake_dynsym)) - addr_of_.dynstr = st_name 
 (0x404078+0x10+0x18) - 0x400470    			#+0x10 cause our fake_.rel.plt is 18 bytes +0x18 cause fake_dynsym is 24 bytes
 0x4040a0 - 0x400470 = 0x3c30    
 ```
