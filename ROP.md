@@ -1160,12 +1160,14 @@ Prerequisites
 2. ability to write to memory
 
 ```
-  [ 6] .dynsym     00000000004003c0  symbole table
-  [ 7] .dynstr     0000000000400438  string table
-  [11] .rela.plt   00000000004004d8  relocation table
-  [22] .dynamic    0000000000403e20  dynamic section
-  [24] .got.plt    0000000000404000  GOT
-  [26] .bss        0000000000404038  .bss we can write here
+readelf -S resolve_partial_relro
+		
+  [ 6] .dynsym           DYNSYM           00000000004003c8
+  [ 7] .dynstr           STRTAB           0000000000400470
+  [11] .rela.plt         RELA             0000000000400550
+  [22] .dynamic          DYNAMIC          0000000000403e20
+  [24] .got.plt          PROGBITS         0000000000404000
+  [26] .bss              NOBITS           0000000000404040
 
 ```
 
@@ -1173,33 +1175,33 @@ we can create a fake .rel.plt entry in the .bss and pass a huge index to _dl_run
 
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/relplt.png">
 
-we set 0x1A6 as index.   \
-runtime_resolve would than look for the .rel.plt entry @ 0x404038 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info.   
+we set 0x277 as index.   \
+than runtime_resolve would than look for the .rel.plt entry @ 404078 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info.   
 		
 each .rel.plt entry is 24 bytes in size.    	
 		
 ```
-addr_fake_struct - addr_of_.rel.plt = byte_offset / 24 = index_offset 
-0x404038 - 0x4004d8 = 0x3B60/24 = 0x1A6   
+addr_fake_frame - addr_of_.rel.plt = byte_offset / 24 = index_offset 
+0x404078 - 00400550 = 0x3B28/24 = 0x277   
 ```
 
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynsym.png">
-we set our fake r_info to 0x286 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
+we set our fake r_info to 0x360 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
 
 each .dynsym entry is 18 bytes in size 
 		
 ```
 (addr_fake_struct + offset_fake_dynsym) - addr_of_.dynsym = byte_offset / 18 = r_info_offset 
-(0x404038+24) - 0x04003c0     				#+24 cause our fake_.rel.plt is 24 bytes
-0x404050 - 0x04003c0 = 0x3c90/18 = 0x286    
+(0x404078+24) - 004003c8     				#+24 cause our fake_.rel.plt is 24 bytes
+0x404090 - 004003c8 = 0x3cc8/18 = 0x360   
 ```	
 
 here we set the st_name offset to 0x3c2a.    \
-starting @ 0x400438 to our fake string @ 0x404062    
+starting @ 0x400471 to our fake string @ 0x404078    
 ```
 (addr_fake_struct + offset_fake_dynsym + offset_fake_dynstr) - addr_of_.dynstr = st_name 
-(0x404038+24+18) - 0x400438    
-0x404062 - 0x400438 = 0x3c2a    
+(0x404078+24+18) - 0x400471    
+0x4040a2 - 0x400471 = 0x3c31    
 ```
 and as last step we set what libc function we want to resolve into our fake .dynstr entry @ 0x404062
 
