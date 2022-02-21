@@ -1188,7 +1188,7 @@ addr_fake_frame - addr_of_.rel.plt = byte_offset / 0x18 = index_offset
 we set our fake r_info to 0x288 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
 		
 ```
-(addr_fake_struct + len(fake_dynsym)) - addr_of_.dynsym = byte_offset / 0x18 = fake_r_info 
+(addr_fake_struct + len(fake_.rel.plt)) - addr_of_.dynsym = byte_offset / 0x18 = fake_r_info 
 (0x404078+0x10) - 004003c8     				#+0x10 cause our fake_.rel.plt is 18 bytes
 0x404088 - 004003c8 = 0x3cc0/0x18 = 0x288   
 ```	
