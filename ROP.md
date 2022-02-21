@@ -1181,13 +1181,11 @@ than runtime_resolve would look for the .rel.plt entry @ 404078 which is in .bss
 
 ```
 addr_fake_frame - addr_of_.rel.plt = byte_offset / 0x18 = index_offset 
-0x404078 - 00400550 = 0x3B28/24 = 0x277   
+0x404078 - 00400550 = 0x3B28/0x18 = 0x277   
 ```
 
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/_dynsym.png">
 we set our fake r_info to 0x288 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
-
-each .dynsym entry is 0x18 bytes in size 
 		
 ```
 (addr_fake_struct + len(fake_dynsym)) - addr_of_.dynsym = byte_offset / 0x18 = fake_r_info 
