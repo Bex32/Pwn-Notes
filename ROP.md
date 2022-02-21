@@ -1103,7 +1103,8 @@ in the String table we look at ofset 10h and find the string puts
 
 Prerequisites
 1. IP controll
-2. ability to write to memory
+2. ability to write to memory #we use read() #if we cant find a pop rdx we could ret2csu before 
+		#or use mov [reg],reg and corespoding pop gadgets to write our fake frame but this will increase the payload size!!
 
 in the .dynamic section there is a pointer to the String table .dynstr if RELRO is off this section is actually writeable we can change the pointer to.
 if we cange d_val to a section in the .bss we can basically write our own String table there and simply could replace puts with execve.
