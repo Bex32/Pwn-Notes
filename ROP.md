@@ -1189,7 +1189,7 @@ we set our fake r_info to 0x288 and place our fake .dynsym struct that contains 
 		
 ```
 (addr_fake_struct + len(fake_.rel.plt)) - addr_of_.dynsym = byte_offset / 0x18 = fake_r_info 
-(0x404078+0x10) - 004003c8     				#+0x10 cause our fake_.rel.plt is 18 bytes
+(0x404078+0x10) - 004003c8     				#+0x10 cause our fake_.rel.plt is 16 bytes
 0x404088 - 004003c8 = 0x3cc0/0x18 = 0x288   
 ```	
 
@@ -1197,7 +1197,7 @@ here we set the st_name offset to 0x3c30.    \
 starting @ 0x400470 to our fake string @ 0x4040a0    
 ```
 (addr_fake_struct + len(fake_.rel.plt) + len(fake_dynsym)) - addr_of_.dynstr = st_name 
-(0x404078+0x10+0x18) - 0x400470    			#+0x10 cause our fake_.rel.plt is 18 bytes +0x18 cause fake_dynsym is 24 bytes
+(0x404078+0x10+0x18) - 0x400470    			#+0x10 cause our fake_.rel.plt is 16 bytes +0x18 cause fake_dynsym is 24 bytes
 0x4040a0 - 0x400470 = 0x3c30    
 ```
 and as last step we set what libc function we want to resolve into our fake .dynstr entry @ 0x4040a0
