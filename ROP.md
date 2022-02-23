@@ -1113,7 +1113,9 @@ gef➤  vmmap 0x4031d0     			#.dynamic start here
 Start              End                Offset             Perm Path
 0x0000000000403000 0x0000000000404000 0x0000000000002000 rw- /home/bex/Desktop/re2dl/resolve_no_relro		
 ```
+		
 0x4031d0 + 0x88 = 0x403258
+		
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/nRELROdynamicSection_no_relro.png">
 		
 if we cange d_val to point to a section in the .bss we can basically copy the .dynsym and replace an entry with our own String.
