@@ -1118,7 +1118,7 @@ Start              End                Offset             Perm Path
 		
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/nRELROdynamicSection_no_relro.png">
 		
-if we cange d_val to point to a section in the .bss we can basically copy the .dynsym and replace an entry with our own String.
+if we cange d_val to point to a section in the .bss we can basically copy the .dynstr and replace an entry with our own String.
 or just place our fake String at the right offset from the start of our fake_dynstr we use setbuf to overwrite it with puts.
 		
 the offset is 0x1d 0x400455 - 0x400438 = 0x1d
