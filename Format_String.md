@@ -340,7 +340,8 @@ n               Nothing printed.
                 The number of characters written so far is stored in the pointed location.
 ```
 
-for example `%6$p` in x64 would print the content of the rsp 
+for example `%6$p` in x64 would print the content of the rsp  
+            
 `x64 int printf (rdi, rsi, rdx, rcx, r8, r9, rsp, rsp+0x8, rsp+0x10, ...);`
             
 some examples for interesting specifieres such as `%n %hn %hhn` and `%10000c` will come next
