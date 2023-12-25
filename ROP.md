@@ -1481,7 +1481,7 @@ for the ret2dl_resolve exploit we dont need to know how that works but i would r
 
 
 
-
+EXAMPLE resolving puts
 we pushed 0 so we look at the first entry of the Relocation table and find the r_info holding 100000007h for now we only care about the 1 which is the offset for the Symbol table  
 
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/Relocation_table.png">
