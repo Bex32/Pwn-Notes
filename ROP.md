@@ -1036,50 +1036,454 @@ https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-di-f
 
 		
 # how _dl_runtime_resolve works
-
+binary: GITHUB LINK TO DL THE BINARY HERE!!! \
+first step:before we can exploit something we need to know how it works under the hood! \
+the _dl_runtime_resolve() basically does a lookup in some tables that live inside the binary 
 ```
 _dl_runtime_resolve(elf_info , index )
-				|
-				|
-  ------------------------------
+				 |
+				 |
+  /-----------------------------/
   |
-  |	 ___________________          ___________________          ___________________
-  |	| Relocation table  |        |   Symbol table    |        |   String table    |
-  |	|_____rel.plt_______|        |_____.dynsym_______|        |______.dynstr______|
-  |	|       ...         |        |       ...         |        |       ...         |
-  |	|___________________|        |___________________|        |___________________|
-  >>>>>>|      r_offset     |        |      st_name      |        |      read\0       |
-	|___________________|        |___________________|        |___________________|
-	|      r_info       | ____   |      st_info      |        |       ...         |
-	|___________________|     |  |___________________|        |___________________|
-	|       ...         |     |  |        ...        |    |>>>|      puts\0       |
-	|___________________|     |  |___________________|    |   |___________________|
-	|      r_offset     |     |  |      st_name      | ___|   |       ...         |
-	|___________________|     |  |___________________|        |___________________|
-	|      r_info       |     >>>|      st_info      |        |                   |
-	|___________________|        |___________________|        |___________________|
+  | _____________________    _____________________      _____________________
+  | | Relocation table  |    |   Symbol table    |      |   String table    |
+  | |_____rel.plt_______|    |_____.dynsym_______|      |______.dynstr______|
+  | |       ...         |    |       ...         |      |       ...         |
+  | |___________________|    |___________________|      |___________________|
+  >>|      r_offset     |    |      st_name      |   |>>|      read\0       |
+    |___________________|    |___________________|   |  |___________________|
+    |      r_info       |__  |      st_info      |   |  |       ...         |
+    |___________________|  | |___________________|   |  |___________________|
+    |       ...         |  | |        ...        |   |  |      setbuf\0     |
+    |___________________|  | |___________________|   |  |___________________|
+    |      r_offset     |  | |      st_name      | __|  |       ...         |
+    |___________________|  | |___________________|      |___________________|
+    |      r_info       |  >>|      st_info      |      |                   |
+    |___________________|    |___________________|      |___________________|
+```
 
 ```
-		
-so first we enter the call to puts.
+→   0x401050 <read@plt+0>     endbr64 
+    0x401054 <read@plt+4>     bnd    jmp QWORD PTR [rip+0x236d]        # 0x4033c8 <read@got.plt>
+    0x40105b <read@plt+11>    nop    DWORD PTR [rax+rax*1+0x0]
+```
+at this point the got holds `0x4033c8: 0x0000000000401030`
+since this is the first call to read it is not resolved we need to setup the arguments for 
+`_dl_runtime_resolve(elf_info , index)`
+pushes the index in this case 0x0       
+```
+    0x401030                  endbr64 
+→   0x401034                  push   0x0
+    0x401039                  bnd    jmp 0x401020   
+```
 
-since this is the first call to puts it is not binded we need to setup the arguments for _dl_runtime_resolve(elf_info , index )
+pushes the elf_info 0x4033c8:	0x00007ffff7ffe2e0       
+```
+	0x401020                  push   QWORD PTR [rip+0x2392]        # 0x4033b8
+    0x401026                  bnd    jmp QWORD PTR [rip+0x2393]        # 0x4033c0
+```
 
-pushes the index in this case 0x0       \
-```
-	0x401030                  endbr64        
- →   0x401034                  push   0x0       
-     0x401039                  bnd    jmp 0x401020      
-```
-pushes the elf_info 0x404008:	0x00007ffff7ffe190       \
-```
-→   0x401020                  push   QWORD PTR [rip+0x2fe2]        # 0x404008       
-     0x401026                  bnd    jmp QWORD PTR [rip+0x2fe3]        # 0x404010       
-     0x40102d                  nop    DWORD PTR [rax]       
-```
-than we look into the rel.plt        
+at this point we enter the resolving procedure starting with `_dl_runtime_resolve_xsavec`.
 
-we pushed 0 so we look at the first entry of the Relocation table and find the r_info holding 100000007h for now we only care about the 1 which is the offset for the Symbol table       
+```
+Dump of assembler code for function _dl_runtime_resolve_xsavec:
+=> 0x00007ffff7fd8d30 <+0>:	endbr64 
+   0x00007ffff7fd8d34 <+4>:	push   rbx
+   0x00007ffff7fd8d35 <+5>:	mov    rbx,rsp
+   0x00007ffff7fd8d38 <+8>:	and    rsp,0xffffffffffffffc0
+   0x00007ffff7fd8d3c <+12>:	sub    rsp,QWORD PTR [rip+0x23f4d]        # 0x7ffff7ffcc90 <_rtld_global_ro+432>
+   0x00007ffff7fd8d43 <+19>:	mov    QWORD PTR [rsp],rax
+   0x00007ffff7fd8d47 <+23>:	mov    QWORD PTR [rsp+0x8],rcx
+   0x00007ffff7fd8d4c <+28>:	mov    QWORD PTR [rsp+0x10],rdx
+   0x00007ffff7fd8d51 <+33>:	mov    QWORD PTR [rsp+0x18],rsi
+   0x00007ffff7fd8d56 <+38>:	mov    QWORD PTR [rsp+0x20],rdi
+   0x00007ffff7fd8d5b <+43>:	mov    QWORD PTR [rsp+0x28],r8
+   0x00007ffff7fd8d60 <+48>:	mov    QWORD PTR [rsp+0x30],r9
+   0x00007ffff7fd8d65 <+53>:	mov    eax,0xee
+   0x00007ffff7fd8d6a <+58>:	xor    edx,edx
+   0x00007ffff7fd8d6c <+60>:	mov    QWORD PTR [rsp+0x250],rdx
+   0x00007ffff7fd8d74 <+68>:	mov    QWORD PTR [rsp+0x258],rdx
+   0x00007ffff7fd8d7c <+76>:	mov    QWORD PTR [rsp+0x260],rdx
+   0x00007ffff7fd8d84 <+84>:	mov    QWORD PTR [rsp+0x268],rdx
+   0x00007ffff7fd8d8c <+92>:	mov    QWORD PTR [rsp+0x270],rdx
+   0x00007ffff7fd8d94 <+100>:	mov    QWORD PTR [rsp+0x278],rdx
+   0x00007ffff7fd8d9c <+108>:	xsavec [rsp+0x40]
+   0x00007ffff7fd8da1 <+113>:	mov    rsi,QWORD PTR [rbx+0x10]
+   0x00007ffff7fd8da5 <+117>:	mov    rdi,QWORD PTR [rbx+0x8]
+   0x00007ffff7fd8da9 <+121>:	call   0x7ffff7fd5e70 <_dl_fixup>
+   0x00007ffff7fd8dae <+126>:	mov    r11,rax
+   0x00007ffff7fd8db1 <+129>:	mov    eax,0xee
+   0x00007ffff7fd8db6 <+134>:	xor    edx,edx
+   0x00007ffff7fd8db8 <+136>:	xrstor [rsp+0x40]
+   0x00007ffff7fd8dbd <+141>:	mov    r9,QWORD PTR [rsp+0x30]
+   0x00007ffff7fd8dc2 <+146>:	mov    r8,QWORD PTR [rsp+0x28]
+   0x00007ffff7fd8dc7 <+151>:	mov    rdi,QWORD PTR [rsp+0x20]
+   0x00007ffff7fd8dcc <+156>:	mov    rsi,QWORD PTR [rsp+0x18]
+   0x00007ffff7fd8dd1 <+161>:	mov    rdx,QWORD PTR [rsp+0x10]
+   0x00007ffff7fd8dd6 <+166>:	mov    rcx,QWORD PTR [rsp+0x8]
+   0x00007ffff7fd8ddb <+171>:	mov    rax,QWORD PTR [rsp]
+   0x00007ffff7fd8ddf <+175>:	mov    rsp,rbx
+   0x00007ffff7fd8de2 <+178>:	mov    rbx,QWORD PTR [rsp]
+   0x00007ffff7fd8de6 <+182>:	add    rsp,0x18
+   0x00007ffff7fd8dea <+186>:	jmp    r11
+```
+
+we save some values on the stack nothing special so far.
+than we jump to `_dl_fixup(*elf_info , index)` `_dl_fixup(rdi,rsi)`
+```
+_dl_fixup (
+   QWORD var_0 = 0x00007ffff7ffe2e0 → 0x0000000000000000,
+   Elf64_Word var_1 = 0x0000000000000000
+) 
+```
+
+```
+Dump of assembler code for function _dl_fixup:
+=> 0x00007ffff7fd5e70 <+0>:	endbr64 
+   0x00007ffff7fd5e74 <+4>:	push   r13
+   0x00007ffff7fd5e76 <+6>:	xor    r9d,r9d
+   0x00007ffff7fd5e79 <+9>:	push   r12
+   0x00007ffff7fd5e7b <+11>:	push   rbp
+   0x00007ffff7fd5e7c <+12>:	mov    rbp,rdi
+   0x00007ffff7fd5e7f <+15>:	push   rbx
+   0x00007ffff7fd5e80 <+16>:	sub    rsp,0x18
+   0x00007ffff7fd5e84 <+20>:	mov    rax,QWORD PTR [rdi+0x70]
+   0x00007ffff7fd5e88 <+24>:	mov    r10,QWORD PTR [rax+0x8]
+   0x00007ffff7fd5e8c <+28>:	mov    rax,QWORD PTR [rdi]
+   0x00007ffff7fd5e8f <+31>:	test   BYTE PTR [rdi+0x31e],0x20
+   0x00007ffff7fd5e96 <+38>:	je     0x7ffff7fd5e9e <_dl_fixup+46>
+   0x00007ffff7fd5e98 <+40>:	add    r10,rax
+   0x00007ffff7fd5e9b <+43>:	mov    r9,rax
+   0x00007ffff7fd5e9e <+46>:	mov    rdx,QWORD PTR [rbp+0x68]
+   0x00007ffff7fd5ea2 <+50>:	mov    ebx,esi
+   0x00007ffff7fd5ea4 <+52>:	lea    rcx,[rbx+rbx*2]
+   0x00007ffff7fd5ea8 <+56>:	mov    rdi,QWORD PTR [rdx+0x8]
+   0x00007ffff7fd5eac <+60>:	mov    rdx,QWORD PTR [rbp+0xf8]
+   0x00007ffff7fd5eb3 <+67>:	mov    rdx,QWORD PTR [rdx+0x8]
+   0x00007ffff7fd5eb7 <+71>:	add    rdi,r9
+   0x00007ffff7fd5eba <+74>:	lea    rsi,[rdx+rcx*8]
+   0x00007ffff7fd5ebe <+78>:	add    rsi,r9
+   0x00007ffff7fd5ec1 <+81>:	mov    r8,QWORD PTR [rsi+0x8]
+   0x00007ffff7fd5ec5 <+85>:	mov    r12,QWORD PTR [rsi]
+   0x00007ffff7fd5ec8 <+88>:	mov    rdx,r8
+   0x00007ffff7fd5ecb <+91>:	add    r12,rax
+   0x00007ffff7fd5ece <+94>:	shr    rdx,0x20
+   0x00007ffff7fd5ed2 <+98>:	lea    rcx,[rdx+rdx*1]
+   0x00007ffff7fd5ed6 <+102>:	add    rdx,rcx
+   0x00007ffff7fd5ed9 <+105>:	lea    rdx,[r10+rdx*8]
+   0x00007ffff7fd5edd <+109>:	mov    QWORD PTR [rsp],rdx
+   0x00007ffff7fd5ee1 <+113>:	cmp    r8d,0x7
+   0x00007ffff7fd5ee5 <+117>:	jne    0x7ffff7fd60dc <_dl_fixup+620>
+   0x00007ffff7fd5eeb <+123>:	test   BYTE PTR [rdx+0x5],0x3
+   0x00007ffff7fd5eef <+127>:	jne    0x7ffff7fd60b0 <_dl_fixup+576>
+   0x00007ffff7fd5ef5 <+133>:	mov    r8,QWORD PTR [rbp+0x1d0]
+   0x00007ffff7fd5efc <+140>:	test   r8,r8
+   0x00007ffff7fd5eff <+143>:	je     0x7ffff7fd5f2c <_dl_fixup+188>
+   0x00007ffff7fd5f01 <+145>:	add    rcx,r9
+   0x00007ffff7fd5f04 <+148>:	add    rcx,QWORD PTR [r8+0x8]
+   0x00007ffff7fd5f08 <+152>:	movzx  eax,WORD PTR [rcx]
+   0x00007ffff7fd5f0b <+155>:	and    eax,0x7fff
+   0x00007ffff7fd5f10 <+160>:	lea    rcx,[rax+rax*2]
+   0x00007ffff7fd5f14 <+164>:	mov    rax,QWORD PTR [rbp+0x2e8]
+   0x00007ffff7fd5f1b <+171>:	lea    r8,[rax+rcx*8]
+   0x00007ffff7fd5f1f <+175>:	xor    eax,eax
+   0x00007ffff7fd5f21 <+177>:	mov    r9d,DWORD PTR [r8+0x8]
+   0x00007ffff7fd5f25 <+181>:	test   r9d,r9d
+   0x00007ffff7fd5f28 <+184>:	cmove  r8,rax
+   0x00007ffff7fd5f2c <+188>:	mov    ecx,DWORD PTR fs:0x18
+   0x00007ffff7fd5f34 <+196>:	mov    eax,0x1
+   0x00007ffff7fd5f39 <+201>:	test   ecx,ecx
+   0x00007ffff7fd5f3b <+203>:	je     0x7ffff7fd5f4e <_dl_fixup+222>
+   0x00007ffff7fd5f3d <+205>:	mov    DWORD PTR fs:0x1c,0x1
+   0x00007ffff7fd5f49 <+217>:	mov    eax,0x5
+   0x00007ffff7fd5f4e <+222>:	mov    edx,DWORD PTR [rdx]
+   0x00007ffff7fd5f50 <+224>:	mov    r10,rsp
+   0x00007ffff7fd5f53 <+227>:	push   0x0
+   0x00007ffff7fd5f55 <+229>:	mov    r9d,0x1
+   0x00007ffff7fd5f5b <+235>:	push   rax
+   0x00007ffff7fd5f5c <+236>:	mov    rcx,QWORD PTR [rbp+0x398]
+   0x00007ffff7fd5f63 <+243>:	mov    rsi,rbp
+   0x00007ffff7fd5f66 <+246>:	add    rdi,rdx
+   0x00007ffff7fd5f69 <+249>:	mov    rdx,r10
+   0x00007ffff7fd5f6c <+252>:	call   0x7ffff7fcf0d0 <_dl_lookup_symbol_x>
+   0x00007ffff7fd5f71 <+257>:	mov    r13,rax
+   0x00007ffff7fd5f74 <+260>:	mov    eax,DWORD PTR fs:0x18
+   0x00007ffff7fd5f7c <+268>:	pop    rsi
+   0x00007ffff7fd5f7d <+269>:	pop    rdi
+   0x00007ffff7fd5f7e <+270>:	test   eax,eax
+   0x00007ffff7fd5f80 <+272>:	jne    0x7ffff7fd6000 <_dl_fixup+400>
+   0x00007ffff7fd5f82 <+274>:	mov    rdx,QWORD PTR [rsp]
+   0x00007ffff7fd5f86 <+278>:	test   rdx,rdx
+   0x00007ffff7fd5f89 <+281>:	je     0x7ffff7fd6048 <_dl_fixup+472>
+   0x00007ffff7fd5f8f <+287>:	cmp    WORD PTR [rdx+0x6],0xfff1
+   0x00007ffff7fd5f94 <+292>:	je     0x7ffff7fd6060 <_dl_fixup+496>
+   0x00007ffff7fd5f9a <+298>:	test   r13,r13
+   0x00007ffff7fd5f9d <+301>:	je     0x7ffff7fd6060 <_dl_fixup+496>
+   0x00007ffff7fd5fa3 <+307>:	mov    rax,QWORD PTR [r13+0x0]
+   0x00007ffff7fd5fa7 <+311>:	add    rax,QWORD PTR [rdx+0x8]
+   0x00007ffff7fd5fab <+315>:	mov    QWORD PTR [rsp+0x8],rax
+   0x00007ffff7fd5fb0 <+320>:	movzx  edx,BYTE PTR [rdx+0x4]
+   0x00007ffff7fd5fb4 <+324>:	and    edx,0xf
+   0x00007ffff7fd5fb7 <+327>:	cmp    dl,0xa
+   0x00007ffff7fd5fba <+330>:	je     0x7ffff7fd60d0 <_dl_fixup+608>
+   0x00007ffff7fd5fc0 <+336>:	mov    rdx,QWORD PTR [rbp+0x340]
+   0x00007ffff7fd5fc7 <+343>:	test   rdx,rdx
+   0x00007ffff7fd5fca <+346>:	je     0x7ffff7fd5fe1 <_dl_fixup+369>
+   0x00007ffff7fd5fcc <+348>:	shl    rbx,0x5
+   0x00007ffff7fd5fd0 <+352>:	add    rbx,rdx
+   0x00007ffff7fd5fd3 <+355>:	mov    eax,DWORD PTR [rbx+0x1c]
+   0x00007ffff7fd5fd6 <+358>:	test   eax,eax
+   0x00007ffff7fd5fd8 <+360>:	je     0x7ffff7fd6070 <_dl_fixup+512>
+   0x00007ffff7fd5fde <+366>:	mov    rax,QWORD PTR [rbx]
+   0x00007ffff7fd5fe1 <+369>:	mov    edx,DWORD PTR [rip+0x26b49]        # 0x7ffff7ffcb30 <_rtld_global_ro+80>
+   0x00007ffff7fd5fe7 <+375>:	test   edx,edx
+   0x00007ffff7fd5fe9 <+377>:	jne    0x7ffff7fd5fef <_dl_fixup+383>
+   0x00007ffff7fd5feb <+379>:	mov    QWORD PTR [r12],rax
+   0x00007ffff7fd5fef <+383>:	add    rsp,0x18
+   0x00007ffff7fd5ff3 <+387>:	pop    rbx
+   0x00007ffff7fd5ff4 <+388>:	pop    rbp
+   0x00007ffff7fd5ff5 <+389>:	pop    r12
+   0x00007ffff7fd5ff7 <+391>:	pop    r13
+   0x00007ffff7fd5ff9 <+393>:	ret    
+   0x00007ffff7fd5ffa <+394>:	nop    WORD PTR [rax+rax*1+0x0]
+   0x00007ffff7fd6000 <+400>:	xor    eax,eax
+   0x00007ffff7fd6002 <+402>:	xchg   DWORD PTR fs:0x1c,eax
+   0x00007ffff7fd600a <+410>:	cmp    eax,0x2
+   0x00007ffff7fd600d <+413>:	jne    0x7ffff7fd5f82 <_dl_fixup+274>
+   0x00007ffff7fd6013 <+419>:	xor    r10d,r10d
+   0x00007ffff7fd6016 <+422>:	mov    edx,0x1
+   0x00007ffff7fd601b <+427>:	mov    esi,0x81
+   0x00007ffff7fd6020 <+432>:	mov    rax,QWORD PTR fs:0x10
+   0x00007ffff7fd6029 <+441>:	lea    rdi,[rax+0x1c]
+   0x00007ffff7fd602d <+445>:	mov    eax,0xca
+   0x00007ffff7fd6032 <+450>:	syscall 
+   0x00007ffff7fd6034 <+452>:	mov    rdx,QWORD PTR [rsp]
+   0x00007ffff7fd6038 <+456>:	test   rdx,rdx
+   0x00007ffff7fd603b <+459>:	jne    0x7ffff7fd5f8f <_dl_fixup+287>
+   0x00007ffff7fd6041 <+465>:	nop    DWORD PTR [rax+0x0]
+   0x00007ffff7fd6048 <+472>:	mov    QWORD PTR [rsp+0x8],0x0
+   0x00007ffff7fd6051 <+481>:	xor    eax,eax
+   0x00007ffff7fd6053 <+483>:	jmp    0x7ffff7fd5fc0 <_dl_fixup+336>
+   0x00007ffff7fd6058 <+488>:	nop    DWORD PTR [rax+rax*1+0x0]
+   0x00007ffff7fd6060 <+496>:	xor    eax,eax
+   0x00007ffff7fd6062 <+498>:	jmp    0x7ffff7fd5fa7 <_dl_fixup+311>
+   0x00007ffff7fd6067 <+503>:	nop    WORD PTR [rax+rax*1+0x0]
+   0x00007ffff7fd6070 <+512>:	mov    rdx,QWORD PTR [rsp]
+   0x00007ffff7fd6074 <+516>:	lea    rcx,[rsp+0x8]
+   0x00007ffff7fd6079 <+521>:	mov    r8,r13
+   0x00007ffff7fd607c <+524>:	mov    rsi,rbx
+   0x00007ffff7fd607f <+527>:	mov    rdi,rbp
+   0x00007ffff7fd6082 <+530>:	call   0x7ffff7fde900 <_dl_audit_symbind>
+   0x00007ffff7fd6087 <+535>:	mov    ecx,DWORD PTR [rip+0x26aa3]        # 0x7ffff7ffcb30 <_rtld_global_ro+80>
+   0x00007ffff7fd608d <+541>:	mov    rax,QWORD PTR [rsp+0x8]
+   0x00007ffff7fd6092 <+546>:	test   ecx,ecx
+   0x00007ffff7fd6094 <+548>:	jne    0x7ffff7fd5fef <_dl_fixup+383>
+   0x00007ffff7fd609a <+554>:	mov    QWORD PTR [rbx],rax
+   0x00007ffff7fd609d <+557>:	mov    DWORD PTR [rbx+0x1c],0x1
+   0x00007ffff7fd60a4 <+564>:	mov    rax,QWORD PTR [rsp+0x8]
+   0x00007ffff7fd60a9 <+569>:	jmp    0x7ffff7fd5fe1 <_dl_fixup+369>
+   0x00007ffff7fd60ae <+574>:	xchg   ax,ax
+   0x00007ffff7fd60b0 <+576>:	xor    ecx,ecx
+   0x00007ffff7fd60b2 <+578>:	cmp    WORD PTR [rdx+0x6],0xfff1
+   0x00007ffff7fd60b7 <+583>:	mov    r13,rbp
+   0x00007ffff7fd60ba <+586>:	cmove  rax,rcx
+   0x00007ffff7fd60be <+590>:	add    rax,QWORD PTR [rdx+0x8]
+   0x00007ffff7fd60c2 <+594>:	mov    QWORD PTR [rsp+0x8],rax
+   0x00007ffff7fd60c7 <+599>:	jmp    0x7ffff7fd5fb0 <_dl_fixup+320>
+   0x00007ffff7fd60cc <+604>:	nop    DWORD PTR [rax+0x0]
+   0x00007ffff7fd60d0 <+608>:	call   rax
+   0x00007ffff7fd60d2 <+610>:	mov    QWORD PTR [rsp+0x8],rax
+   0x00007ffff7fd60d7 <+615>:	jmp    0x7ffff7fd5fc0 <_dl_fixup+336>
+   0x00007ffff7fd60dc <+620>:	lea    rcx,[rip+0x1e09d]        # 0x7ffff7ff4180 <__PRETTY_FUNCTION__.1>
+   0x00007ffff7fd60e3 <+627>:	mov    edx,0x3f
+   0x00007ffff7fd60e8 <+632>:	lea    rsi,[rip+0x1b046]        # 0x7ffff7ff1135
+   0x00007ffff7fd60ef <+639>:	lea    rdi,[rip+0x1e052]        # 0x7ffff7ff4148
+   0x00007ffff7fd60f6 <+646>:	call   0x7ffff7fe1460 <__GI___assert_fail>
+```
+
+we set the elf_info as rbp and setup some pointers 
+
+at ` 0x7ffff7fd5e88 <_dl_fixup+24>   mov    r10, QWORD PTR [rax+0x8]` we load the pointer to the DT_SYMTAB into r10
+
+```
+                             //
+                             // .dynsym 
+                             // SHT_DYNSYM  [0x400390 - 0x400437]
+                             // ram:00400390-ram:00400437
+                             //
+                             __DT_SYMTAB                                     XREF[2]:     00403268(*), 
+                                                                                          _elfSectionHeaders::00000190(*)  
+        00400390 00 00 00        Elf64_Sy
+                 00 00 00 
+                 00 00 00 
+           00400390 00 00 00 00 00  Elf64_Sym                         [0]                               XREF[2]:     00403268(*), 
+                    00 00 00 00 00                                                                                   _elfSectionHeaders::00000190(*)  
+                    00 00 00 00 00
+              00400390 00 00 00 00     ddw       0h                      st_name                           XREF[2]:     00403268(*),                                                                                                       
+              00400394 00              db        0h                      st_info
+              00400395 00              db        0h                      st_other
+              00400396 00 00           dw        0h                      st_shndx
+              00400398 00 00 00 00 00  dq        0h                      st_value
+                       00 00 00
+              004003a0 00 00 00 00 00  dq        0h                      st_size
+                       00 00 00
+           004003a8 11 00 00 00 12  Elf64_Sym                         [1]
+                    00 00 00 00 00 
+                    00 00 00 00 00
+              004003a8 11 00 00 00     ddw       11h                     st_name       read
+              004003ac 12              db        12h                     st_info
+              004003ad 00              db        0h                      st_other
+              004003ae 00 00           dw        0h                      st_shndx
+              004003b0 00 00 00 00 00  dq        0h                      st_value
+                       00 00 00
+              004003b8 00 00 00 00 00  dq        0h                      st_size
+                       00 00 00
+           004003c0 25 00 00 00 12  Elf64_Sym                         [2]           __libc_start_main
+                    00 00 00 00 00 
+                    00 00 00 00 00
+           004003d8 43 00 00 00 20  Elf64_Sym                         [3]           __gmon_start__
+                    00 00 00 00 00 
+                    00 00 00 00 00
+           004003f0 1d 00 00 00 12  Elf64_Sym                         [4]           setvbuf
+                    00 00 00 00 00 
+                    00 00 00 00 00
+           00400408 16 00 00 00 11  Elf64_Sym                         [5]           stdout
+                    00 1a 00 f0 33 
+                    40 00 00 00 00
+           00400420 0b 00 00 00 11  Elf64_Sym                         [6]           stdin
+                    00 1a 00 00 34 
+                    40 00 00 00 00
+
+```
+
+at `0x00007ffff7fd5e9e <+46>:	mov    rdx,QWORD PTR [rbp+0x68]` we load the pointer to the .dynamic entry for the DT_STRTAB section of the binary into the rdx
+
+.dynamic
+```
+           00403250 05 00 00 00 00  Elf64_Dyn                         [8]
+                    00 00 00 38 04 
+                    40 00 00 00 00
+              00403250 05 00 00 00 00  Elf64_Dy  DT_STRTAB               d_tag         DT_STRTAB - Addres
+                       00 00 00
+              00403258 38 04 40 00 00  dq        __DT_STRTAB             d_val
+                       00 00 00
+```
+
+at `0x7ffff7fd5ea8 <_dl_fixup+56>   mov    rdi, QWORD PTR [rdx+0x8]` we load the pointer to the DT_STRTAB into rdi
+
+DT_STRTAB
+```
+                             //
+                             // .dynstr 
+                             // SHT_STRTAB  [0x400438 - 0x400489]
+                             // ram:00400438-ram:00400489
+                             //
+                             __DT_STRTAB                                     XREF[2]:     00403258(*), 
+                                                                                          _elfSectionHeaders::000001d0(*)  
+        00400438 00              ??         00h
+        00400439 6c 69 62        ds         "libc.so.6"
+                 63 2e 73 
+                 6f 2e 36 00
+        00400443 73 74 64        ds         "stdin"
+                 69 6e 00
+        00400449 72 65 61        ds         "read"
+                 64 00
+        0040044e 73 74 64        ds         "stdout"
+                 6f 75 74 00
+        00400455 73 65 74        ds         "setvbuf"
+                 76 62 75 
+                 66 00
+        0040045d 5f 5f 6c        ds         "__libc_start_main"
+                 69 62 63 
+                 5f 73 74 
+        0040046f 47 4c 49        ds         "GLIBC_2.2.5"
+                 42 43 5f 
+                 32 2e 32 
+        0040047b 5f 5f 67        ds         "__gmon_start__"
+                 6d 6f 6e 
+                 5f 73 74 
+
+```
+
+at `0x7ffff7fd5eac <_dl_fixup+60>   mov    rdx, QWORD PTR [rbp+0xf8]` we load the pointer to the DT_JMPREL entry of the .dynamic section into rdx 
+
+```
+           004032d0 17 00 00 00 00  Elf64_Dyn                         [16]
+                    00 00 00 18 05 
+                    40 00 00 00 00
+              004032d0 17 00 00 00 00  Elf64_Dy  DT_JMPREL               d_tag         DT_JMPREL - Addres
+                       00 00 00
+              004032d8 18 05 40 00 00  dq        __DT_JMPREL             d_val
+                       00 00 00
+```
+
+at `0x7ffff7fd5eb3 <_dl_fixup+67>   mov    rdx, QWORD PTR [rdx+0x8]` we load a pointer to the actual `DT_JMPREL` into rdx
+
+```
+                             //
+                             // .rela.plt 
+                             // SHT_RELA  [0x400518 - 0x400547]
+                             // ram:00400518-ram:00400547
+                             //
+                             __DT_JMPREL                                     XREF[2]:     004032d8(*), 
+                                                                                          _elfSectionHeaders::000002d0(*)  
+        00400518 c8 33 40        Elf64_Re
+                 00 00 00 
+                 00 00 07 
+           00400518 c8 33 40 00 00  Elf64_Rela                        [0]                               XREF[2]:     004032d8(*), 
+                    00 00 00 07 00                                                                                   _elfSectionHeaders::000002d0(*)  
+                    00 00 01 00 00
+              00400518 c8 33 40 00 00  dq        4033C8h                 r_offset      location to apply   XREF[2]:     004032d8(*), 
+                       00 00 00                                                                                         _elfSectionHeaders::000002d0(*)  
+              00400520 07 00 00 00 01  dq        100000007h              r_info        the symbol table i
+                       00 00 00
+              00400528 00 00 00 00 00  dq        0h                      r_addend      a constant addend 
+                       00 00 00
+           00400530 d0 33 40 00 00  Elf64_Rela                        [1]
+                    00 00 00 07 00 
+                    00 00 04 00 00
+              00400530 d0 33 40 00 00  dq        4033D0h                 r_offset      location to apply 
+                       00 00 00
+              00400538 07 00 00 00 04  dq        400000007h              r_info        the symbol table i
+                       00 00 00
+              00400540 00 00 00 00 00  dq        0h                      r_addend      a constant addend 
+                       00 00 00
+```
+
+at `0x7ffff7fd5ec1 <_dl_fixup+81>   mov    r8, QWORD PTR [rsi+0x8]` we load the r_info of the (index) entry of the `DT_JMPREL`
+
+at`0x7ffff7fd5ec5 <_dl_fixup+85>   mov    r12, QWORD PTR [rsi]` we load the r_offset of the (index) entry of the `DT_JMPREL` (at this point its not verry usefull to mess with this but in some cases it could be ;) )
+
+at `0x7ffff7fd5ed9 <_dl_fixup+105>  lea    rdx, [r10+rdx*8]` we load a ptr to the (r_info = 1) entry of the `DT_SYMTAB` into rdx
+
+```
+           004003a8 11 00 00 00 12  Elf64_Sym                         [1]
+                    00 00 00 00 00 
+                    00 00 00 00 00
+              004003a8 11 00 00 00     ddw       11h                     st_name       read
+              004003ac 12              db        12h                     st_info
+              004003ad 00              db        0h                      st_other
+              004003ae 00 00           dw        0h                      st_shndx
+              004003b0 00 00 00 00 00  dq        0h                      st_value
+                       00 00 00
+              004003b8 00 00 00 00 00  dq        0h                      st_size
+                       00 00 00
+```
+at `0x7ffff7fd5ee1 <_dl_fixup+113>  cmp    r8d, 0x7` we compare a checksum so the `r_info` allways need to look like this 0x100000007h! 
+
+at `0x7ffff7fd5f4e <_dl_fixup+222>  mov    edx, DWORD PTR [rdx]` we load the st_name value of the DT_SYMTAB entry into edx
+   
+at `0x7ffff7fd5f66 <_dl_fixup+246>  add    rdi, rdx` we add the st_name to the pointer of the DT_STRTAB to get the pointer to the "read" string inside the DT_STRTAB
+
+at `0x7ffff7fd5f6c <_dl_fixup+252>  call   0x7ffff7fcf0d0 <_dl_lookup_symbol_x>` we call the lookup function which basically searches throu all linked libs to find a function which matches the name provided in rdi (rdi currently holds a pointer to the DT_STRTAB enrty "read")
+
+for the ret2dl_resolve exploit we dont need to know how that works but i would reccomend you at least understand the concecpt of lazy loading.
+
+
+
+
+we pushed 0 so we look at the first entry of the Relocation table and find the r_info holding 100000007h for now we only care about the 1 which is the offset for the Symbol table  
+
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/Relocation_table.png">
 
 in the Symbole table we look at offset 1 and find the st_name which holds the offset 10h
@@ -1087,6 +1491,7 @@ in the Symbole table we look at offset 1 and find the st_name which holds the of
 		
 in the String table we look at ofset 10h and find the string puts
 <img src="https://github.com/Bex32/Pwn-Notes/blob/main/src/ret2dl_resolve/String_Table.png">
+
 
 
 </div>
